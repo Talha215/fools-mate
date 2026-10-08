@@ -1,0 +1,29 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "fools-mate",
+	"main": "./worker/index.js",
+	"compatibility_date": "2026-10-01",
+	"observability": {
+		"enabled": true
+	},
+	"assets": {
+		// worker/index.js serves pages through env.ASSETS.
+		"binding": "ASSETS",
+		// Pretty URLs like /game/abc123 and /replay/abc123 load the React app.
+		"not_found_handling": "single-page-application",
+		// Every request goes through the Worker so the optional SITE_PASSWORD gate
+		// also covers the page itself. Once the site is public, ["/api/*"] saves a
+		// few Worker requests per page load.
+		"run_worker_first": true
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "fools-mate",
+			// The live database on Cloudflare (created with `wrangler d1 create`).
+			// Local dev uses a separate local copy in .wrangler\ either way.
+			"database_id": "622096f3-4606-48ea-84d5-ac7c1ee66787",
+			"migrations_dir": "migrations"
+		}
+	]
+}

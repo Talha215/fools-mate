@@ -1,0 +1,33 @@
+{
+  "name": "fools-mate",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "description": "Lose to the worst chess AI ever made, in as few moves as possible.",
+  "scripts": {
+    "dev": "npm run db:local && vite",
+    "build": "vite build",
+    "preview": "npm run build && vite preview",
+    "db:local": "wrangler d1 migrations apply DB --local",
+    "db:remote": "wrangler d1 migrations apply DB --remote",
+    "deploy": "npm run build && npm run db:remote && wrangler deploy",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "chess.js": "^1.4.0",
+    "chessground": "^9.2.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.63.1",
+    "@vitejs/plugin-react": "^6.1.2",
+    "vite": "^8.3.4",
+    "wrangler": "^4.149.0"
+  },
+  "allowScripts": {
+    "workerd@1.20261006.1": true,
+    "esbuild@0.28.2": true
+  }
+}
