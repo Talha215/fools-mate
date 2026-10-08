@@ -11,10 +11,12 @@
 		"binding": "ASSETS",
 		// Pretty URLs like /game/abc123 and /replay/abc123 load the React app.
 		"not_found_handling": "single-page-application",
-		// Every request goes through the Worker so the optional SITE_PASSWORD gate
-		// also covers the page itself. Once the site is public, ["/api/*"] saves a
-		// few Worker requests per page load.
-		"run_worker_first": true
+		// Only the API runs the Worker. Pages, scripts and fonts are served as static
+		// assets, which are free, unlimited, and keep loading even if the daily
+		// Worker request limit is hit. For private mode (SITE_PASSWORD) set this to
+		// true so the password also covers the pages; then every file counts as a
+		// Worker request.
+		"run_worker_first": ["/api/*"]
 	},
 	"d1_databases": [
 		{

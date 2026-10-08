@@ -8,9 +8,10 @@ const STALE_ACTIVE_MS = 7 * 24 * 60 * 60 * 1000; // abandoned games are pruned a
 
 export default {
   async fetch(request, env, ctx) {
-    // Private mode: while the SITE_PASSWORD secret is set, every request (pages
-    // and API) needs it. `wrangler secret delete SITE_PASSWORD` makes the site
-    // public. Unset in local dev, so dev never asks.
+    // Private mode: while the SITE_PASSWORD secret is set, every request that
+    // reaches the Worker needs it. That's only /api/* unless run_worker_first is
+    // true in wrangler.jsonc (needed to hide the pages too).
+    // `wrangler secret delete SITE_PASSWORD` turns it off. Unset in local dev.
     if (env.SITE_PASSWORD && !(await hasSitePassword(request, env.SITE_PASSWORD))) {
       return new Response("Fool's Mate is private for now.", {
         status: 401,

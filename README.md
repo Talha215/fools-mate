@@ -51,10 +51,25 @@ The first deploy may ask you to register a workers.dev subdomain; pick any name.
 then at `https://fools-mate.<your-subdomain>.workers.dev` (a brand-new subdomain can take a few
 minutes to start resolving).
 
-**Private mode.** While the `SITE_PASSWORD` secret exists, every page and API call asks for it
-(the browser's own login box: any username, that password). Go public with
-`.\run npx wrangler secret delete SITE_PASSWORD`; no redeploy needed. Local dev never asks,
-unless you put `SITE_PASSWORD=...` in a `.dev.vars` file.
+**Private mode** (currently off; the site is public). To lock the site, set
+`"run_worker_first": true` in `wrangler.jsonc`, deploy, then run
+`.\run npx wrangler secret put SITE_PASSWORD`: every page and API call then asks for it (the
+browser's own login box: any username, that password). Undo with
+`.\run npx wrangler secret delete SITE_PASSWORD` and set `run_worker_first` back to `["/api/*"]`,
+which keeps page files out of the daily Worker request limit. Local dev never asks, unless you
+put `SITE_PASSWORD=...` in a `.dev.vars` file.
+
+**Backups.** `.\run npm run backup` downloads the whole live database (schema and data, as SQL)
+to `backups\`, keeping the newest 30. `npm run deploy` runs it first, so every deploy leaves a
+snapshot from just before it. Cloudflare also keeps 7 days of history on the free plan.
+To restore:
+
+- Within the last 7 days: `.\run npx wrangler d1 time-travel restore fools-mate --timestamp=<ISO time>`.
+- From a backup file: create a fresh database with
+  `.\run npx wrangler d1 create fools-mate-restore`, load the file into it with
+  `.\run npx wrangler d1 execute fools-mate-restore --remote --file backups\<file>.sql`, then put
+  the new `database_id` in `wrangler.jsonc` and deploy. (Loading a backup into the existing
+  database fails, because its tables already exist.)
 
 Free plan limits that matter:
 100k requests/day (1 per move), D1 100k rows written/day (about 2 per move, because D1 also counts
