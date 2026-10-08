@@ -1,3 +1,3 @@
-// Link shown in the footer. chessground is GPL-3.0, so a public deployment
-// must offer its source: set this to the repo URL before going public.
-export const SOURCE_URL = '';
+// Footer link to the source code. chessground is GPL-3.0, so the public site
+// must offer its source.
+export const SOURCE_URL = 'https://github.com/Talha215/fools-mate';

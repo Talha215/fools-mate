@@ -77,9 +77,9 @@ index entries; the indexes are partial to keep this low), 5 GB storage, 10 ms CP
 In practice that's roughly 50k moves a day before anything throttles.
 A move request uses about 0.3 ms of CPU (`.\run node scripts\bench-cpu.mjs` measures it).
 
-**Before making it public:** chessground (the board) is GPL-3.0, so this app is too, and anyone
-using the site must be able to get the source. Push the repo somewhere public and set
-`SOURCE_URL` in `src/config.js`; the footer links to it.
+**License:** chessground (the board) is GPL-3.0, so this app is too, and anyone using the site
+must be able to get the source. The source is public at https://github.com/Talha215/fools-mate,
+and the site's footer links to it (`SOURCE_URL` in `src/config.js`).
 
 ## How it works
 
