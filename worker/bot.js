@@ -1,16 +1,18 @@
-// Gary's entire brain.
+import { garyOptions } from '../shared/gary.js';
+
+// Gary's move: a uniform pick from the group his one idea allows (see
+// shared/gary.js). Returns { from, to, promotion, uci }; the caller plays it
+// through the normal legality check, so a broken brain can't cheat.
 //
-// Given the position (a chess.js instance) and every legal move in it as SAN
-// strings ("e4", "Nxf7+", "e8=Q#"), return one of those strings. Today that's a
-// uniformly random pick. A future bot can be as clever (or as cursed) as you
-// like, as long as it returns an element of `legalMoves`; the caller
-// re-validates it either way. Keep it cheap: Cloudflare's free plan allows
-// 10 ms of CPU per request (measure with scripts/bench-cpu.mjs).
+// To give Gary a different personality, change garyOptions (the browser uses
+// it too, to show his options) and keep it cheap: Cloudflare's free plan
+// allows 10 ms of CPU per request (measure with scripts/bench-cpu.mjs).
 //
 // `rng(n)` returns a uniform integer in [0, n). The Worker passes a crypto
 // source; tests pass a seeded one.
-export function chooseMove(chess, legalMoves, rng) {
-  return legalMoves[rng(legalMoves.length)];
+export function chooseMove(chess, rng) {
+  const { pool } = garyOptions(chess);
+  return pool[rng(pool.length)];
 }
 
 // Uniform integer in [0, n) from the Web Crypto API, with rejection sampling so

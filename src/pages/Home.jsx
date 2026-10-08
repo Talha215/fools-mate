@@ -109,13 +109,14 @@ export default function Home() {
           </figure>
           <div className="story">
             <p>
-              {BOT.name} is the club computer. It knows the rules of chess and nothing else: every move, it picks one
-              of its legal moves at random.
+              {BOT.name} is the club computer. It knows the rules of chess and one plan, which is to attack your king.
+              If it can give check, it does, picking one of its checks at random. If it can't, it moves a piece toward
+              your king, also at random.
             </p>
             <p>
               The object is to get checkmated by {BOT.name} in as few moves as you can. Checkmating {BOT.name} doesn't
-              count, and neither does a draw. The shortest possible game is two moves, but only if {BOT.name} plays
-              along.
+              count, and neither does a draw. {BOT.name} can't tell a check from a checkmate, so the quickest way to
+              lose is to leave it checks that are also mate.
             </p>
           </div>
         </article>
@@ -236,7 +237,10 @@ function Problem() {
         Solution: 1.f3 e5 2.g4 Qh4#
         {solved && step === plies.length - 1 && <PenCircle className="solution-ring" />}
       </button>
-      <p className="problem-note">{BOT.name} plays along about once in three hundred games.</p>
+      <p className="problem-note">
+        {BOT.name} has to open with 1…e5 or 1…e6, which happens about one game in ten. After 2.g4, its only check is
+        the mate.
+      </p>
     </figure>
   );
 }

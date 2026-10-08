@@ -2,24 +2,24 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Chess } from 'chess.js';
 import { newGame, playerMove, playerMoveCount, resign } from '../worker/game.js';
-import { matingMoves, replay, outcome } from '../shared/rules.js';
+import { replay, outcome } from '../shared/rules.js';
+import { garyOptions } from '../shared/gary.js';
 
-const asMove = (uci) => ({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
-
-// Plays the player's move with the bot forced to reply `botUci` (when the
-// game isn't already over), so tests can script exact lines.
+// Plays the player's move with Gary forced to reply `botUci` (when the game
+// isn't already over), so the rules tests can script exact lines whatever
+// Gary's personality is.
 function play(state, uci, botUci) {
-  const after = new Chess(state.fen);
-  after.move(asMove(uci));
-  const legal = after.moves({ verbose: true });
-  const res = playerMove(state, uci, () => {
-    const i = legal.findIndex((m) => m.lan === botUci);
-    if (i < 0) throw new Error(`scripted bot move ${botUci} is not legal`);
-    return i;
-  });
+  const res = playerMove(state, uci, () => 0, () => ({ uci: botUci }));
   assert.ok(res.state, res.error);
   return res.state;
 }
+
+const seeded = (seed) => (n) => ((seed = (seed * 1103515245 + 12345) % 2 ** 31), seed % n);
+const after = (...san) => {
+  const c = new Chess();
+  for (const m of san) c.move(m);
+  return c;
+};
 
 test("fool's mate as White scores 2 and counts as success", () => {
   let s = newGame('w', () => 0);
@@ -107,9 +107,8 @@ test('resigning is recorded as resigned', () => {
   assert.equal(resign(newGame('w', () => 0)).result, 'resigned');
 });
 
-test('the bot only ever plays legal moves (fuzz)', () => {
-  let seed = 42;
-  const rng = (n) => ((seed = (seed * 1103515245 + 12345) % 2 ** 31), seed % n);
+test('Gary only ever plays legal moves (fuzz)', () => {
+  const rng = seeded(42);
   for (let g = 0; g < 30; g++) {
     let s = newGame(g % 2 ? 'b' : 'w', rng);
     while (!s.result && s.moves.length < 400) {
@@ -123,13 +122,46 @@ test('the bot only ever plays legal moves (fuzz)', () => {
   }
 });
 
-test('matingMoves counts the bot\'s mating options', () => {
-  // After 1.f3 e5 2.g4, Black has exactly one mate: Qh4#.
-  const c = new Chess();
-  for (const m of ['f3', 'e5', 'g4']) c.move(m);
-  const { mates, total } = matingMoves(c.fen());
-  assert.equal(mates, 1);
-  assert.equal(total, c.moves().length);
+test("Gary plays his only check, so fool's mate is forced after 1.f3 e5 2.g4", () => {
+  const o = garyOptions(after('f3', 'e5', 'g4'));
+  assert.equal(o.kind, 'check');
+  assert.deepEqual(o.pool.map((m) => m.uci), ['d8h4']);
+  assert.equal(o.mates, 1);
+});
+
+test('with no checks, Gary moves a non-king piece toward your king', () => {
+  // Black's first move: every one of the 20 brings a piece closer to e1.
+  const o = garyOptions(after('f3'));
+  assert.equal(o.kind, 'charge');
+  assert.equal(o.pool.length, 20);
+  assert.equal(o.mates, 0);
+});
+
+test("Gary's options follow his rules in every position (fuzz)", () => {
+  const rng = seeded(7);
+  const d = (a, b) => Math.max(Math.abs(a.charCodeAt(0) - b.charCodeAt(0)), Math.abs(a.charCodeAt(1) - b.charCodeAt(1)));
+  for (let g = 0; g < 12; g++) {
+    const chess = new Chess();
+    while (!chess.isGameOver() && chess.history().length < 160) {
+      const o = garyOptions(chess);
+      const legal = chess.moves({ verbose: true });
+      assert.equal(o.legal, legal.length);
+      const lan = new Set(legal.map((m) => m.lan));
+      for (const m of o.pool) assert.ok(lan.has(m.uci), `${m.uci} is not legal in ${chess.fen()}`);
+      const checks = legal.filter((m) => /[+#]$/.test(m.san));
+      if (checks.length) {
+        assert.equal(o.kind, 'check');
+        assert.equal(o.pool.length, checks.length);
+      } else if (o.kind === 'charge') {
+        const king = chess.board().flat().find((p) => p && p.type === 'k' && p.color !== chess.turn()).square;
+        for (const m of o.pool) assert.ok(m.piece !== 'k' && d(m.to, king) < d(m.from, king));
+      } else {
+        assert.equal(o.pool.length, legal.length);
+      }
+      assert.equal(o.mates, legal.filter((m) => m.san.endsWith('#')).length);
+      chess.move(legal[rng(legal.length)].san);
+    }
+  }
 });
 
 test('a promotion letter on a non-promoting move is rejected', () => {

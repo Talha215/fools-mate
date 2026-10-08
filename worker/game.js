@@ -13,7 +13,8 @@ import { Chess } from 'chess.js';
 import { outcome, playUci, positionKey, trackRepetition } from '../shared/rules.js';
 import { chooseMove } from './bot.js';
 
-export function newGame(playerColor, rng) {
+// `choose(chess, rng)` picks Gary's move; tests swap in scripted lines.
+export function newGame(playerColor, rng, choose = chooseMove) {
   const chess = new Chess();
   const state = {
     playerColor,
@@ -23,19 +24,19 @@ export function newGame(playerColor, rng) {
     result: null,
     reason: null,
   };
-  // The bot has White, so it opens.
-  return playerColor === 'b' ? botReply(state, chess, rng) : state;
+  // Gary has White, so he opens.
+  return playerColor === 'b' ? botReply(state, chess, rng, choose) : state;
 }
 
-// Applies the player's move and, unless that ended the game, the bot's reply.
+// Applies the player's move and, unless that ended the game, Gary's reply.
 // Returns { state } or { error } (state is never mutated).
-export function playerMove(state, uci, rng) {
+export function playerMove(state, uci, rng, choose = chooseMove) {
   if (state.result) return { error: 'This game is already over.' };
   const chess = new Chess(state.fen);
   if (chess.turn() !== state.playerColor) return { error: "It's not your turn." };
   if (!playUci(chess, uci)) return { error: `Illegal move: ${uci}` };
   const next = advance(state, chess, uci);
-  return { state: next.result ? next : botReply(next, chess, rng) };
+  return { state: next.result ? next : botReply(next, chess, rng, choose) };
 }
 
 export function resign(state) {
@@ -47,12 +48,12 @@ export function playerMoveCount(state) {
   return state.moves.filter((_, i) => i % 2 === parity).length;
 }
 
-function botReply(state, chess, rng) {
-  const legal = chess.moves(); // SAN; see the performance note on playUci
-  const pick = chooseMove(chess, legal, rng);
+function botReply(state, chess, rng, choose) {
+  const pick = choose(chess, rng);
   // Never trust the brain blindly, even this one.
-  if (!legal.includes(pick)) throw new Error(`Bot chose a move that isn't legal: ${pick}`);
-  return advance(state, chess, chess.move(pick).lan);
+  const move = pick && playUci(chess, pick.uci);
+  if (!move) throw new Error(`Gary chose a move that isn't legal: ${pick?.uci}`);
+  return advance(state, chess, move.lan);
 }
 
 function advance(state, chess, uci) {

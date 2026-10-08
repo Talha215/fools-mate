@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
 import { api } from '../api.js';
 import { BOT } from '../../shared/bot.js';
-import { matingMoves, playUci, replay, START_FEN } from '../../shared/rules.js';
+import { playUci, replay, START_FEN } from '../../shared/rules.js';
+import { garyOptions } from '../../shared/gary.js';
 import Board from '../components/Board.jsx';
 import ChessLayout from '../components/ChessLayout.jsx';
 import PlayerBar from '../components/PlayerBar.jsx';
@@ -128,7 +129,7 @@ function GameView({ initial, token }) {
     setPending(uci);
     playSound(soundForMove(m, chess.inCheck()));
     const afterFen = chess.fen();
-    const options = chess.isGameOver() ? null : matingMoves(afterFen);
+    const options = chess.isGameOver() ? null : garyOptions(chess);
     setTally(options ? { ...options, phase: 'thinking' } : null);
 
     const started = performance.now();
@@ -148,7 +149,7 @@ function GameView({ initial, token }) {
         const bm = playUci(c, next.moves[next.moves.length - 1]);
         if (bm) {
           playSound(soundForMove(bm, c.inCheck()));
-          setTally({ ...options, phase: 'done', picked: bm.san, pickedLabel: moveLabel(ply + 1, bm.san) });
+          setTally({ ...options, phase: 'done', picked: bm.lan, pickedLabel: moveLabel(ply + 1, bm.san) });
         }
       }
       if (next.status === 'finished') finish(botMoved);

@@ -51,8 +51,11 @@ export default function ResultSlip({ open, game, token, finalOdds, closeCalls, o
     lines.push(`Checkmated in ${plural(game.playerMoves, 'move')}.`);
     if (game.playerMoves === 2) lines.push('That is the shortest game possible.');
     if (finalOdds) {
+      const n = finalOdds.pool.length;
       lines.push(
-        `${BOT.name} had ${plural(finalOdds.mates, 'mating move')} out of ${finalOdds.total} and played ${finalOdds.mates === 1 ? 'it' : 'one'}.`,
+        n === 1
+          ? `${BOT.name}'s only check was mate.`
+          : `${BOT.name} had ${word(n)} checks to choose from, and ${finalOdds.mates === 1 ? 'one was' : `${word(finalOdds.mates)} were`} mate.`,
       );
     }
     if (closeCalls) lines.push(`Before that, ${BOT.name} missed ${plural(closeCalls, 'mate')}.`);

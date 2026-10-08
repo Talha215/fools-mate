@@ -1,5 +1,7 @@
 import { useMemo, useRef } from 'react';
-import { matingMoves, START_FEN } from '../../shared/rules.js';
+import { Chess } from 'chess.js';
+import { START_FEN } from '../../shared/rules.js';
+import { garyOptions } from '../../shared/gary.js';
 import { BOT } from '../../shared/bot.js';
 
 const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -31,17 +33,21 @@ export function useAnnotations(plies, playerColor) {
       const before = i === 0 ? START_FEN : plies[i - 1].fen;
       let r = cache.current.get(before);
       if (!r) {
-        r = matingMoves(before);
+        r = garyOptions(new Chess(before));
         cache.current.set(before, r);
       }
       if (!r.mates) return;
       if (i > 0) marks.set(i - 1, '!');
+      // Mates are always checks, so Gary was choosing between his checks.
+      const n = r.pool.length;
       if (p.san.endsWith('#')) {
-        notes.set(i, `${cap(word(r.mates))} of ${r.total} moves mated here.`);
+        notes.set(i, n === 1 ? 'The only check was mate.' : `${cap(word(r.mates))} of ${word(n)} checks mated here.`);
       } else {
         closeCalls++;
         marks.set(i, '??');
-        const first = moveLabel(i, r.mating[0]);
+        // Per-square SAN can drop disambiguation; replay for the proper one.
+        const m = r.mating[0];
+        const first = moveLabel(i, new Chess(before).move({ from: m.from, to: m.to, promotion: m.promotion }).san);
         notes.set(i, r.mates === 1 ? `Missed ${first}.` : `Missed ${word(r.mates)} mates, ${first} among them.`);
       }
     });

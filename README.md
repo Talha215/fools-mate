@@ -1,9 +1,10 @@
 # Fool's Mate
 
-Chess against **Gary**, a computer that plays a random legal move every turn.
+Chess against **Gary**, a computer with one plan: if it can give check it does (picking one of
+its checks at random), and otherwise it moves a random piece toward your king.
 The goal is upside down: **get checkmated in as few of your own moves as possible.**
-The theoretical best is 2 (Fool's Mate: 1. f3 e5 2. g4?? Qh4#), which needs the
-bot to pick the right 1-in-300 line.
+The theoretical best is 2 (Fool's Mate: 1. f3 e5 2. g4?? Qh4#). Gary has to open 1…e5 or 1…e6
+(about 1 game in 10); after 2.g4 its only check is the mate.
 
 - Getting checkmated: success, goes in the standings, scored by your move count (ties: faster game).
 - Checkmating the bot, stalemate, threefold repetition, 50-move rule, insufficient material: fail.
@@ -86,7 +87,8 @@ The server is authoritative, which is what makes the leaderboard meaningful:
 | --- | --- |
 | `worker/index.js` | API routes, storage, leaderboard, stats |
 | `worker/game.js` | Pure game state machine (unit tested) |
-| `worker/bot.js` | **The bot's brain.** `chooseMove(chess, legalSanMoves, rng)` |
+| `shared/gary.js` | **Gary's brain**: which moves he'll pick from (also drives the on-screen tally) |
+| `worker/bot.js` | Picks one of those at random, server-side |
 | `shared/rules.js` | Rules helpers used by both server and browser |
 | `migrations/` | D1 schema |
 | `src/pages/Game.jsx` | Live game: optimistic moves, premoves, promotion, Gary's options |
@@ -108,10 +110,12 @@ Pages: `/` front page, `/standings`, `/archive`, `/game/<id>`, `/replay/<id>`
 
 ### Changing the bot
 
-Edit `chooseMove` in `worker/bot.js`. It receives a chess.js instance and the legal moves as
-SAN strings, and must return one of them (the caller rejects anything else). Keep it under the
-10 ms CPU budget, and avoid `chess.moves({ verbose: true })` on the server: it is quadratic
-(see the note in `shared/rules.js`).
+Gary's personality is `garyOptions` in `shared/gary.js`: it returns the group of moves he
+picks from uniformly. The server uses it to choose (`worker/bot.js`), and the browser uses it to
+draw the tally marks and annotate games, so the two always agree. Whatever it returns is played
+through the normal legality check. Keep it under the 10 ms CPU budget, and avoid
+`chess.moves({ verbose: true })` on the server: it is quadratic (see the note in `shared/rules.js`).
+Rule changes apply to new games only; old games in the archive keep the moves they had.
 
 ### API
 

@@ -1,41 +1,50 @@
 import { BOT } from '../../shared/bot.js';
 import { word } from '../lib/annotate.js';
 
-// Gary's options as tally marks: one stroke per legal move, red if it would
-// checkmate you, and the one he actually picked circled once he's moved.
-// data: { legal, mating, mates, total, phase: 'thinking' | 'done', picked, pickedLabel }
+const cap = (s) => s[0].toUpperCase() + s.slice(1);
+
+// The moves Gary is choosing between, as tally marks: only his checks when he
+// has any, otherwise the moves that bring a piece toward your king. Red marks
+// are mate; once he's moved, the one he picked is circled.
+// data: garyOptions(...) plus { phase: 'thinking' | 'done', picked (uci), pickedLabel }
 export default function Tally({ data }) {
   if (!data) {
     return (
       <div className="tally idle">
         <div className="tally-head">{BOT.name}'s options</div>
-        <p className="tally-text">Each mark is one of {BOT.name}'s legal moves. Red ones would checkmate you.</p>
+        <p className="tally-text">
+          Each mark is a move {BOT.name} might play. When {BOT.name} can give check, only the checks count. Red ones
+          are mate.
+        </p>
       </div>
     );
   }
-  const mating = new Set(data.mating);
+  const n = data.pool.length;
+  const checks = data.kind === 'check';
   let text;
   if (data.phase === 'thinking') {
-    text = data.mates
-      ? `${word(data.mates)[0].toUpperCase()}${word(data.mates).slice(1)} of these ${data.total} would mate you.`
-      : `None of these ${data.total} mate you.`;
+    if (checks && n === 1) text = data.mates ? `${BOT.name}'s only check is mate.` : `${BOT.name} has one check, and it isn't mate.`;
+    else if (checks) text = data.mates ? `${cap(word(data.mates))} of these ${n} checks ${data.mates === 1 ? 'is' : 'are'} mate.` : `None of these ${n} checks is mate.`;
+    else if (data.kind === 'charge') text = `No checks, so ${BOT.name} will move one of these ${n} toward your king.`;
+    else text = `No checks, and nothing can get closer to your king, so any of these ${n} will do.`;
   } else {
     text = `${BOT.name} played ${data.pickedLabel}.`;
-    if (data.mates && !mating.has(data.picked)) text += data.mates === 1 ? ' The red one was mate.' : ' The red ones were mate.';
+    const missed = data.mates && !data.mating.some((m) => m.uci === data.picked);
+    if (missed) text += data.mates === 1 ? ' The red one was mate.' : ' The red ones were mate.';
   }
   return (
     <div className={`tally ${data.phase}`}>
       <div className="tally-head">
-        {BOT.name}'s options
-        <span>{data.mates} of {data.total} mate</span>
+        {checks ? `${BOT.name}'s checks` : `${BOT.name}'s options`}
+        <span>{checks ? `${data.mates} of ${n} mate` : 'no checks'}</span>
       </div>
       <div className="tally-marks" aria-hidden="true">
-        {data.legal.map((san, i) => (
+        {data.pool.map((m, i) => (
           <i
-            key={i}
-            className={`${mating.has(san) ? 'mate' : ''}${data.phase === 'done' && data.picked === san ? ' picked' : ''}`}
+            key={m.uci}
+            className={`${m.mate ? 'mate' : ''}${data.phase === 'done' && data.picked === m.uci ? ' picked' : ''}`}
             style={{ '--tilt': `${((i * 37) % 9) - 4}deg` }}
-            title={san}
+            title={m.san}
           />
         ))}
       </div>

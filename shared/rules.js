@@ -1,6 +1,7 @@
 // Chess rules shared by the Worker (authoritative) and the browser (replays,
-// move lists, "mate odds"). chess.js does the move generation; this file only
-// adds the bits it doesn't track for us when a game is loaded from a FEN.
+// move lists). chess.js does the move generation; this file only adds the
+// bits it doesn't track for us when a game is loaded from a FEN. Gary's move
+// choice lives in shared/gary.js.
 import { Chess } from 'chess.js';
 
 export const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -85,14 +86,4 @@ export function replay(uciMoves) {
     });
   }
   return { plies, finalFen: chess.fen(), chess };
-}
-
-// How many of the side-to-move's legal moves are checkmate. The whole point
-// of the game: this is the bot's chance of (accidentally) doing its job.
-// SAN already marks mates with '#', so no need to play each move out.
-// Returns the legal moves in generation order and which of them mate.
-export function matingMoves(fen) {
-  const legal = new Chess(fen).moves();
-  const mating = legal.filter((san) => san.endsWith('#'));
-  return { mates: mating.length, total: legal.length, legal, mating };
 }
