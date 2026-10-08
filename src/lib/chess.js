@@ -47,13 +47,20 @@ export function material(fen) {
 // The king square of the side in check, for chessground's red glow.
 export const checkColor = (fen) => (new Chess(fen).inCheck() ? cgColor(turnOf(fen)) : false);
 
+// "1–0" / "0–1" / "½–½" from White's side, as chess results are written.
+export function scoreline(game) {
+  if (game.result === 'draw') return '½–½';
+  const winner = game.result === 'won' ? game.playerColor : other(game.playerColor);
+  return winner === 'w' ? '1–0' : '0–1';
+}
+
 export const REASONS = {
   checkmate: 'by checkmate',
   stalemate: 'by stalemate',
   repetition: 'by threefold repetition',
   fifty: 'by the 50-move rule',
   insufficient: 'by insufficient material',
-  resign: 'by giving up',
+  resign: 'by resignation',
 };
 
 export function formatDuration(ms) {
@@ -63,6 +70,17 @@ export function formatDuration(ms) {
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m ${String(s % 60).padStart(2, '0')}s`;
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+}
+
+// "9 seconds", "4 minutes", for prose.
+export function durationWords(ms) {
+  if (ms == null) return '';
+  const s = Math.max(1, Math.round(ms / 1000));
+  if (s < 60) return `${s} second${s === 1 ? '' : 's'}`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} minute${m === 1 ? '' : 's'}`;
+  const h = Math.round(m / 60);
+  return `${h} hour${h === 1 ? '' : 's'}`;
 }
 
 export function timeAgo(ts) {
@@ -75,5 +93,5 @@ export function timeAgo(ts) {
   if (h < 24) return `${h}h ago`;
   const d = Math.round(h / 24);
   if (d < 30) return `${d}d ago`;
-  return new Date(ts).toLocaleDateString();
+  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }

@@ -1,4 +1,4 @@
-// Deep Blunder's entire brain.
+// Gary's entire brain.
 //
 // Given the position (a chess.js instance) and every legal move in it as SAN
 // strings ("e4", "Nxf7+", "e8=Q#"), return one of those strings. Today that's a
@@ -14,7 +14,7 @@ export function chooseMove(chess, legalMoves, rng) {
 }
 
 // Uniform integer in [0, n) from the Web Crypto API, with rejection sampling so
-// there's no modulo bias (not that Deep Blunder would notice).
+// there's no modulo bias (not that Gary would notice).
 export function cryptoRng(n) {
   const limit = Math.floor(0x100000000 / n) * n;
   const buf = new Uint32Array(1);

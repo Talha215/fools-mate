@@ -7,18 +7,17 @@ import ChessLayout from '../components/ChessLayout.jsx';
 import PlayerBar from '../components/PlayerBar.jsx';
 import MoveList from '../components/MoveList.jsx';
 import NavControls from '../components/NavControls.jsx';
-import { resultCopy } from '../components/EndModal.jsx';
-import { BotAvatar, PlayerAvatar } from '../components/Avatars.jsx';
-import { IconLink, IconPlus } from '../components/Icons.jsx';
-import { REASONS, cgColor, checkColor, formatDuration, material, other, timeAgo, turnOf } from '../lib/chess.js';
-import { pct, useMateStats } from '../lib/mateStats.js';
+import { ResultLine } from './Game.jsx';
+import { toPgn, useAnnotations } from '../lib/annotate.js';
+import { cgColor, checkColor, formatDuration, material, other, turnOf } from '../lib/chess.js';
 import { tokenFor } from '../lib/myGames.js';
 import { Link } from '../lib/router.jsx';
 import { playSound } from '../lib/sound.js';
 import { toast } from '../lib/toast.jsx';
-import { scoreline, Thinking } from './Game.jsx';
 
 const POLL_MS = 2500;
+
+const copy = (text, done) => navigator.clipboard?.writeText(text).then(() => toast(done), () => toast('Copying failed.'));
 
 export default function ReplayPage({ id }) {
   const [game, setGame] = useState(null);
@@ -37,7 +36,7 @@ export default function ReplayPage({ id }) {
           // Keep the same object while nothing changed, so polling doesn't
           // re-replay the whole game every few seconds.
           setGame((prev) => (prev && prev.ply === g.ply && prev.status === g.status && prev.name === g.name ? prev : g));
-          // Spectating a game in progress: keep polling for new moves.
+          // Watching a game in progress: keep polling for new moves.
           if (g.status === 'active') timer = setTimeout(load, POLL_MS);
         },
         (e) => alive && setError(e.message),
@@ -50,6 +49,7 @@ export default function ReplayPage({ id }) {
   }, [id]);
 
   const plies = useMemo(() => (game ? replay(game.moves).plies : []), [game]);
+  const notes = useAnnotations(plies, game?.playerColor ?? 'w');
   const lastIdx = plies.length - 1;
   const shown = view ?? lastIdx;
   const shownFen = shown >= 0 ? plies[shown].fen : START_FEN;
@@ -57,7 +57,7 @@ export default function ReplayPage({ id }) {
   const lastMove = useMemo(() => (shownPly ? [shownPly.from, shownPly.to] : undefined), [shownPly]);
   const check = useMemo(() => checkColor(shownFen), [shownFen]);
   const mat = useMemo(() => material(shownFen), [shownFen]);
-  const stats = useMateStats(plies, game ? other(game.playerColor) : 'b');
+  const pgn = useMemo(() => (game ? toPgn(game, plies, notes.marks, notes.notes) : null), [game, plies, notes]);
 
   const go = useCallback(
     (i, { quiet = false } = {}) => {
@@ -71,7 +71,7 @@ export default function ReplayPage({ id }) {
     [lastIdx, shown, plies],
   );
 
-  // Autoplay steps forward like a slow broadcast; restarts from the top if
+  // Autoplay steps through at a reading pace; restarts from the top if
   // started at the end.
   useEffect(() => {
     if (!playing) return;
@@ -93,26 +93,24 @@ export default function ReplayPage({ id }) {
     return (
       <div className="page-msg">
         <p>{error}</p>
-        <Link className="btn btn-primary" to="/games">Browse games</Link>
+        <Link className="btn" to="/archive">To the archive</Link>
       </div>
     );
   }
-  if (!game) return <div className="page-msg">Loading game…</div>;
+  if (!game) return <div className="page-msg">Loading the game…</div>;
 
   const playerColor = game.playerColor;
   const orient = orientation || cgColor(playerColor);
   const active = game.status === 'active';
   const mine = !!tokenFor(game.id);
-  const copy = resultCopy(game);
   const sideToMove = turnOf(plies.length ? plies[lastIdx].fen : START_FEN);
 
   const bar = (side) =>
     side === playerColor ? (
       <PlayerBar
         side={side}
-        avatar={<PlayerAvatar name={game.name} />}
         name={game.name}
-        tag={mine ? 'You' : null}
+        tag={mine ? 'you' : null}
         material={mat}
         active={active && sideToMove === side}
         right={<span className="move-count"><b>{game.playerMoves}</b> {game.playerMoves === 1 ? 'move' : 'moves'}</span>}
@@ -120,12 +118,11 @@ export default function ReplayPage({ id }) {
     ) : (
       <PlayerBar
         side={side}
-        avatar={<BotAvatar />}
         name={BOT.name}
         tag={BOT.rating}
         material={mat}
         active={active && sideToMove === side}
-        status={active && sideToMove === side ? <Thinking /> : null}
+        status={active && sideToMove === side ? <span className="typing">thinking</span> : null}
       />
     );
   const topSide = orient === 'white' ? 'b' : 'w';
@@ -135,68 +132,36 @@ export default function ReplayPage({ id }) {
       top={bar(topSide)}
       bottom={bar(other(topSide))}
       board={
-        <Board
-          fen={shownFen}
-          orientation={orient}
-          turnColor={cgColor(turnOf(shownFen))}
-          movableColor={undefined}
-          lastMove={lastMove}
-          check={check}
-        />
+        <Board fen={shownFen} orientation={orient} turnColor={cgColor(turnOf(shownFen))} lastMove={lastMove} check={check} />
       }
       side={
-        <div className="side-card">
-          <div className="game-info">
-            <div className="game-info-title">
-              {active ? <span className="live-badge">LIVE</span> : <span className={`result-pill ${copy.tone}`}>{copy.title}</span>}
-              <span className="game-info-when">{timeAgo(game.endedAt || game.updatedAt)}</span>
-            </div>
-            <div className="game-info-players">
-              <b>{game.name}</b> ({playerColor === 'w' ? 'White' : 'Black'}) vs {BOT.name}
-            </div>
-            <div className="game-info-meta">
-              {game.result === 'mated' && <>Rank <b>#{game.rank}</b> · </>}
-              {game.playerMoves} player moves · {formatDuration(game.durationMs)}
-              {game.reason && !active && <> · {REASONS[game.reason]}</>}
-            </div>
-            <div className="game-info-meta">
-              Close calls <b>{stats.closeCalls}</b> · Best mate odds <b>{pct(stats.bestOdds)}</b>
-            </div>
+        <div className="sheet">
+          <div className="sheet-head">
+            <span>{active ? 'In play' : 'Game record'}</span>
+            <span>{game.durationMs != null && formatDuration(game.durationMs)}</span>
           </div>
+          <pre className="pgn-tags">{pgn.tags}</pre>
           <MoveList
             plies={plies}
             current={shown}
             onSelect={(i) => go(i, { quiet: true })}
-            footer={!active && (
-              <>
-                <div className="result-score">{scoreline(game)}</div>
-                <div className={`result-text ${copy.tone}`}>{copy.title}</div>
-              </>
-            )}
+            marks={notes.marks}
+            notes={notes.notes}
+            empty="No moves yet."
+            footer={!active && <ResultLine game={game} />}
           />
-          <NavControls
-            ply={shown}
-            last={lastIdx}
-            onGo={(i) => go(i)}
-            onFlip={flip}
-            playing={playing}
-            onTogglePlay={togglePlay}
-          />
-          <div className="side-actions">
+          <NavControls ply={shown} last={lastIdx} onGo={(i) => go(i)} onFlip={flip} playing={playing} onTogglePlay={togglePlay} />
+          <div className="sheet-actions">
             {mine && active ? (
-              <Link className="btn btn-primary" to={`/game/${game.id}`}>Continue your game</Link>
+              <Link className="btn btn-ink" to={`/game/${game.id}`}>Back to your game</Link>
             ) : (
-              <Link className="btn btn-primary" to="/"><IconPlus /> Play</Link>
+              <Link className="btn btn-ink" to="/">Play {BOT.name}</Link>
             )}
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                const link = `${location.origin}/replay/${game.id}`;
-                navigator.clipboard?.writeText(link).then(() => toast('Link copied.'), () => toast(link));
-              }}
-            >
-              <IconLink /> Copy link
+            <button type="button" className="btn" onClick={() => copy(`${pgn.tags}\n\n${pgn.text}\n`, 'PGN copied.')}>
+              Copy PGN
+            </button>
+            <button type="button" className="btn" onClick={() => copy(`${location.origin}/replay/${game.id}`, 'Link copied.')}>
+              Copy link
             </button>
           </div>
         </div>

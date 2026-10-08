@@ -2,7 +2,7 @@
 // React only pushes config changes into it.
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { Chessground } from 'chessground';
-import { boardImage, THEMES, useSettings } from '../lib/settings.js';
+import { boardImage, themeOf, useSettings } from '../lib/settings.js';
 
 const Board = forwardRef(function Board(
   { fen, orientation = 'white', turnColor, movableColor, dests, lastMove, check, premove = false, autoShapes, onMove, onPremoveSet, children },
@@ -83,11 +83,17 @@ const Board = forwardRef(function Board(
     cg.current.redrawAll();
   }, [coords]);
 
-  const t = THEMES[theme] || THEMES.brown;
+  const t = themeOf(theme);
   return (
     <div
-      className="board-box"
-      style={{ '--sq-light': t.light, '--sq-dark': t.dark, '--last-move': t.last, '--board-img': boardImage(theme) }}
+      className={`board-box${t.hatch ? ' hatched' : ''}`}
+      style={{
+        '--sq-light': t.light,
+        '--last-move': t.last,
+        '--board-img': boardImage(theme),
+        '--coord-on-light': t.coordOnLight || t.dark,
+        '--coord-on-dark': t.coordOnDark || t.light,
+      }}
     >
       <div ref={el} className="board" />
       {children}

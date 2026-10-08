@@ -1,28 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { BOT } from '../../shared/bot.js';
 import { Link, usePath } from '../lib/router.jsx';
-import { THEMES, updateSettings, useSettings } from '../lib/settings.js';
-import { IconSettings, IconSoundOff, IconSoundOn } from './Icons.jsx';
-
-export function Logo({ size = 28 }) {
-  // A jester's cap: the fool in Fool's Mate.
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
-      <path d="M10 46 6 16l18 16 8-24 8 24 18-16-4 30z" fill="#81b64c" />
-      <path d="M32 8 24 32l8 14 8-14z" fill="#e8b33b" />
-      <path d="M6 16 24 32l-6 14h-8z" fill="#5d8a37" />
-      <path d="M58 16 40 32l6 14h8z" fill="#5d8a37" />
-      <rect x="9" y="45" width="46" height="9" rx="3" fill="#e8e6e3" />
-      <circle cx="6" cy="14" r="5" fill="#e8b33b" />
-      <circle cx="32" cy="7" r="5" fill="#e05252" />
-      <circle cx="58" cy="14" r="5" fill="#e8b33b" />
-    </svg>
-  );
-}
+import { THEMES, boardImage, updateSettings, useSettings } from '../lib/settings.js';
+import { FallenKing } from './Drawings.jsx';
 
 const NAV = [
-  { to: '/', label: 'Play' },
-  { to: '/leaderboard', label: 'Leaderboard' },
-  { to: '/games', label: 'Games' },
+  { to: '/', label: 'Play', match: (p) => p === '/' || p.startsWith('/game/') },
+  { to: '/standings', label: 'Standings', match: (p) => p.startsWith('/standings') },
+  { to: '/archive', label: 'Archive', match: (p) => p.startsWith('/archive') || p.startsWith('/replay/') },
 ];
 
 export default function Header() {
@@ -34,70 +19,68 @@ export default function Header() {
   useEffect(() => {
     if (!open) return;
     const close = (e) => !pop.current?.contains(e.target) && setOpen(false);
+    const esc = (e) => e.key === 'Escape' && setOpen(false);
     window.addEventListener('pointerdown', close);
-    return () => window.removeEventListener('pointerdown', close);
+    window.addEventListener('keydown', esc);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('keydown', esc);
+    };
   }, [open]);
 
-  const isActive = (to) => (to === '/' ? path === '/' || path.startsWith('/game/') : path.startsWith(to) || (to === '/games' && path.startsWith('/replay/')));
-
   return (
-    <header className="site-header">
-      <div className="site-header-inner">
-        <Link to="/" className="brand">
-          <Logo />
-          <span className="brand-text">Fool's<b>Mate</b></span>
+    <header className="nameplate">
+      <div className="nameplate-inner">
+        <Link to="/" className="wordmark" aria-label="Fool's Mate, front page">
+          <FallenKing size={28} />
+          {path !== '/' && <span>Fool's Mate</span>}
         </Link>
-        <nav className="site-nav">
+        <nav className="nav">
           {NAV.map((n) => (
-            <Link key={n.to} to={n.to} className={isActive(n.to) ? 'active' : ''}>
+            <Link key={n.to} to={n.to} className={n.match(path) ? 'on' : ''}>
               {n.label}
             </Link>
           ))}
         </nav>
-        <div className="header-tools" ref={pop}>
-          <button
-            type="button"
-            className="icon-btn"
-            title={settings.sound ? 'Sound on' : 'Sound off'}
-            onClick={() => updateSettings({ sound: !settings.sound })}
-          >
-            {settings.sound ? <IconSoundOn /> : <IconSoundOff />}
+        <div className="tools" ref={pop}>
+          <button type="button" className="text-btn" onClick={() => updateSettings({ sound: !settings.sound })}>
+            sound {settings.sound ? 'on' : 'off'}
           </button>
-          <button type="button" className={`icon-btn${open ? ' on' : ''}`} title="Board settings" onClick={() => setOpen((o) => !o)}>
-            <IconSettings />
+          <button type="button" className={`text-btn${open ? ' on' : ''}`} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+            board
           </button>
           {open && (
             <div className="settings-pop">
-              <div className="settings-title">Board</div>
-              <div className="theme-grid">
+              <div className="pop-label">Board</div>
+              <div className="theme-row">
                 {Object.entries(THEMES).map(([key, t]) => (
                   <button
                     key={key}
                     type="button"
-                    className={`theme-swatch${settings.theme === key ? ' selected' : ''}`}
+                    className={`theme-swatch${settings.theme === key ? ' on' : ''}`}
                     onClick={() => updateSettings({ theme: key })}
-                    title={t.label}
                   >
-                    <span style={{ background: `conic-gradient(${t.dark} 0 25%, ${t.light} 0 50%, ${t.dark} 0 75%, ${t.light} 0)` }} />
+                    <span style={{ backgroundImage: boardImage(key) }} />
                     {t.label}
                   </button>
                 ))}
               </div>
-              <label className="toggle-row">
+              <label className="check-row">
                 <input type="checkbox" checked={settings.coords} onChange={(e) => updateSettings({ coords: e.target.checked })} />
                 Coordinates
               </label>
-              <label className="toggle-row">
+              <label className="check-row">
                 <input type="checkbox" checked={settings.odds} onChange={(e) => updateSettings({ odds: e.target.checked })} />
-                Show the bot's mating odds
+                Show {BOT.name}'s options
               </label>
-              <label className="toggle-row">
+              <label className="check-row">
                 <input type="checkbox" checked={settings.sound} onChange={(e) => updateSettings({ sound: e.target.checked })} />
                 Sound
               </label>
-              <div className="settings-hint">
-                Right-click drag to draw arrows, right-click a square to circle it. Hold Shift, Alt or both for other colours.
-              </div>
+              <p className="pop-hint">
+                Right-click and drag to draw an arrow, or right-click a square to circle it. Shift, Alt, or both
+                change the colour.
+              </p>
             </div>
           )}
         </div>

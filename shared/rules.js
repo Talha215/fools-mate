@@ -90,7 +90,9 @@ export function replay(uciMoves) {
 // How many of the side-to-move's legal moves are checkmate. The whole point
 // of the game: this is the bot's chance of (accidentally) doing its job.
 // SAN already marks mates with '#', so no need to play each move out.
+// Returns the legal moves in generation order and which of them mate.
 export function matingMoves(fen) {
   const legal = new Chess(fen).moves();
-  return { mates: legal.filter((san) => san.endsWith('#')).length, total: legal.length };
+  const mating = legal.filter((san) => san.endsWith('#'));
+  return { mates: mating.length, total: legal.length, legal, mating };
 }

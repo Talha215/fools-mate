@@ -1,17 +1,17 @@
 import { Piece } from '../lib/pieces.jsx';
 
-// The strip above/below the board: avatar, name, material, and a right slot.
-export default function PlayerBar({ avatar, name, tag, side, material, active, status, right }) {
+// The line above/below the board: side, name, material, and a right slot.
+export default function PlayerBar({ name, tag, side, material, active, status, right }) {
   const mine = material?.[side];
   const opp = side === 'w' ? 'b' : 'w';
   return (
     <div className={`player-bar${active ? ' active' : ''}`}>
-      <div className="pb-avatar">{avatar}</div>
+      <span className={`side-chip ${side}`} title={side === 'w' ? 'White' : 'Black'} />
       <div className="pb-main">
         <div className="pb-name">
           <span className="pb-name-text">{name}</span>
           {tag && <span className="pb-tag">{tag}</span>}
-          {status && <span className="pb-status">{status}</span>}
+          {status}
         </div>
         <div className="pb-material">
           {mine?.pieces.map((t, i) => (

@@ -60,33 +60,17 @@ function knock(t, { freq = 1900, q = 1.3, gain = 0.8, decay = 0.05, thump = 170 
   osc.stop(t + 0.1);
 }
 
-function tone(t, freq, dur, { type = 'triangle', gain = 0.18, to, vibrato = 0, lowpass } = {}) {
+function tone(t, freq, dur, { type = 'triangle', gain = 0.18, to } = {}) {
   const osc = ctx.createOscillator();
   osc.type = type;
   osc.frequency.setValueAtTime(freq, t);
   if (to) osc.frequency.exponentialRampToValueAtTime(to, t + dur);
-  if (vibrato) {
-    const lfo = ctx.createOscillator();
-    const depth = ctx.createGain();
-    lfo.frequency.value = 5.5;
-    depth.gain.value = vibrato;
-    lfo.connect(depth).connect(osc.frequency);
-    lfo.start(t);
-    lfo.stop(t + dur);
-  }
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(gain, t + 0.015);
   g.gain.setValueAtTime(gain, t + Math.max(0.02, dur - 0.08));
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  let node = osc.connect(g);
-  if (lowpass) {
-    const lp = ctx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = lowpass;
-    node = node.connect(lp);
-  }
-  node.connect(out);
+  osc.connect(g).connect(out);
   osc.start(t);
   osc.stop(t + dur + 0.02);
 }
@@ -109,22 +93,33 @@ const SOUNDS = {
     knock(t);
     tone(t + 0.03, 523, 0.22, { type: 'sine', gain: 0.12, to: 1046 });
   },
-  start: (t) => {
-    tone(t, 523.25, 0.14, { gain: 0.14 });
-    tone(t + 0.12, 783.99, 0.24, { gain: 0.14 });
+  // A rubber stamp hitting paper on a desk: a dull, low thud.
+  stamp: (t) => {
+    knock(t, { freq: 420, q: 0.7, gain: 1, decay: 0.12, thump: 95 });
+    knock(t + 0.012, { freq: 1500, q: 0.8, gain: 0.25, decay: 0.04, thump: 180 });
   },
-  // You lost! Which is winning. Ta-da.
-  success: (t) => {
-    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(t + i * 0.11, f, 0.16, { type: 'square', gain: 0.06, lowpass: 2600 }));
-    [523.25, 659.25, 783.99, 1046.5].forEach((f) => tone(t + 0.48, f, 0.75, { type: 'triangle', gain: 0.09 }));
-  },
-  // Sad trombone, for winning (which is losing).
-  fail: (t) => {
-    const notes = [392, 370, 349.2];
-    notes.forEach((f, i) => tone(t + i * 0.38, f, 0.34, { type: 'sawtooth', gain: 0.1, lowpass: 1100 }));
-    tone(t + 3 * 0.38, 329.6, 1.1, { type: 'sawtooth', gain: 0.1, lowpass: 1100, vibrato: 9 });
+  // A small desk bell: inharmonic partials with a long ring.
+  bell: (t) => {
+    [
+      [1568, 0.12, 1.4],
+      [1568 * 2.76, 0.05, 0.7],
+      [1568 * 5.4, 0.025, 0.35],
+    ].forEach(([f, g, d]) => ring(t, f, g, d));
   },
 };
+
+function ring(t, freq, gain, dur) {
+  const osc = ctx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + 0.004);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(g).connect(out);
+  osc.start(t);
+  osc.stop(t + dur + 0.02);
+}
 
 export function playSound(name) {
   if (!getSettings().sound) return;

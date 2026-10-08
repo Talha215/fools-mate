@@ -1,11 +1,11 @@
 # Fool's Mate
 
-Chess against **Deep Blunder**, a bot that plays a random legal move every turn.
+Chess against **Gary**, a computer that plays a random legal move every turn.
 The goal is upside down: **get checkmated in as few of your own moves as possible.**
 The theoretical best is 2 (Fool's Mate: 1. f3 e5 2. g4?? Qh4#), which needs the
 bot to pick the right 1-in-300 line.
 
-- Getting checkmated: success, goes on the leaderboard, scored by your move count (ties: faster game).
+- Getting checkmated: success, goes in the standings, scored by your move count (ties: faster game).
 - Checkmating the bot, stalemate, threefold repetition, 50-move rule, insufficient material: fail.
 - Every game is saved and replayable at `/replay/<id>`, including games still in progress (spectating).
 
@@ -89,10 +89,22 @@ The server is authoritative, which is what makes the leaderboard meaningful:
 | `worker/bot.js` | **The bot's brain.** `chooseMove(chess, legalSanMoves, rng)` |
 | `shared/rules.js` | Rules helpers used by both server and browser |
 | `migrations/` | D1 schema |
-| `src/pages/Game.jsx` | Live game: optimistic moves, premoves, promotion, mate odds |
-| `src/pages/Replay.jsx` | Replays and spectating (polls while a game is live) |
+| `src/pages/Game.jsx` | Live game: optimistic moves, premoves, promotion, Gary's options |
+| `src/pages/Replay.jsx` | Replays, spectating (polls while a game is live), PGN export |
+| `src/lib/annotate.js` | Annotates games from the loser-wins side (`??` on missed mates) and writes PGN |
 | `src/components/Board.jsx` | chessground wrapper |
 | `src/lib/sound.js` | All sounds are synthesised (no audio files) |
+| `shared/bot.js` | The opponent's name as shown on the site |
+
+### Design
+
+The site is set like a typewritten chess-club bulletin: newsprint, ink rules, Old Standard
+for headlines and Courier Prime for text (both self-hosted, OFL). The chess-print details are
+deliberate: the result slip is rubber-stamped, the front-page problem prints its solution upside
+down, annotations use real chess notation (`!`, `??`), and the "Diagram" board theme hatches
+the dark squares like a printed book. Gary doesn't talk; the scoresheet notes do the commentary.
+Pages: `/` front page, `/standings`, `/archive`, `/game/<id>`, `/replay/<id>`
+(the old `/leaderboard` and `/games` URLs still work).
 
 ### Changing the bot
 

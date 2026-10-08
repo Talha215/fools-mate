@@ -9,21 +9,17 @@ import PlayerBar from '../components/PlayerBar.jsx';
 import MoveList from '../components/MoveList.jsx';
 import NavControls from '../components/NavControls.jsx';
 import PromotionDialog from '../components/PromotionDialog.jsx';
-import EndModal, { resultCopy } from '../components/EndModal.jsx';
-import { BotAvatar, PlayerAvatar } from '../components/Avatars.jsx';
-import { IconFlag, IconLink, IconPlus, IconReplay, IconTrophy } from '../components/Icons.jsx';
-import { cgColor, checkColor, isPromotion, legalDests, material, other, turnOf } from '../lib/chess.js';
-import { confetti } from '../lib/confetti.js';
-import { pct, useMateStats } from '../lib/mateStats.js';
+import ResultSlip from '../components/ResultSlip.jsx';
+import Tally from '../components/Tally.jsx';
+import { moveLabel, useAnnotations } from '../lib/annotate.js';
+import { cgColor, checkColor, isPromotion, legalDests, material, other, scoreline, turnOf } from '../lib/chess.js';
 import { rememberGame, tokenFor } from '../lib/myGames.js';
-import { quip } from '../lib/quips.js';
 import { Link, navigate } from '../lib/router.jsx';
 import { useSettings } from '../lib/settings.js';
 import { playSound, soundForMove } from '../lib/sound.js';
 import { toast } from '../lib/toast.jsx';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const END_QUIP = { mated: 'botWins', won: 'playerWins', draw: 'draw', resigned: 'resign' };
 
 export default function GamePage({ id }) {
   const [state, setState] = useState({ game: null, error: null });
@@ -49,11 +45,11 @@ export default function GamePage({ id }) {
     return (
       <div className="page-msg">
         <p>{state.error}</p>
-        <Link className="btn btn-primary" to="/">Back to the lobby</Link>
+        <Link className="btn" to="/">Back to the front page</Link>
       </div>
     );
   }
-  if (!state.game) return <div className="page-msg">Setting up the pieces…</div>;
+  if (!state.game) return <div className="page-msg">Loading the game…</div>;
   return <GameView initial={state.game} token={token} />;
 }
 
@@ -64,14 +60,11 @@ function GameView({ initial, token }) {
   const [view, setView] = useState(null); // ply being browsed; null = live position
   const [orientation, setOrientation] = useState(cgColor(initial.playerColor));
   const [promo, setPromo] = useState(null);
-  const [bubble, setBubble] = useState(() =>
-    initial.status === 'finished' ? quip(END_QUIP[initial.result]) : initial.ply <= 1 ? quip('hello') : 'Where were we?',
-  );
-  const [odds, setOdds] = useState(null); // { mates, total, phase: 'thinking' | 'done', hit }
-  const [endOpen, setEndOpen] = useState(false);
+  const [tally, setTally] = useState(null); // Gary's options for the current turn (see Tally)
+  const [slipOpen, setSlipOpen] = useState(false);
   const [confirmResign, setConfirmResign] = useState(false);
   const [busy, setBusy] = useState(false);
-  // A fresh game as Black: show the empty board first, then the bot's opening move.
+  // A fresh game as Black: show the empty board first, then Gary's opening move.
   const [intro, setIntro] = useState(
     () => initial.playerColor === 'b' && initial.ply === 1 && Date.now() - initial.createdAt < 15000,
   );
@@ -80,7 +73,6 @@ function GameView({ initial, token }) {
   useEffect(() => () => void (alive.current = false), []);
 
   const playerColor = game.playerColor;
-  const botColor = other(playerColor);
   const active = game.status === 'active';
 
   const moves = useMemo(() => (intro ? [] : pending ? [...game.moves, pending] : game.moves), [intro, pending, game.moves]);
@@ -96,12 +88,9 @@ function GameView({ initial, token }) {
   const lastMove = useMemo(() => (shownPly ? [shownPly.from, shownPly.to] : undefined), [shownPly]);
   const check = useMemo(() => checkColor(shownFen), [shownFen]);
   const mat = useMemo(() => material(shownFen), [shownFen]);
-  const stats = useMateStats(plies, botColor);
+  const notes = useAnnotations(plies, playerColor);
   const playerMoves = plies.filter((p) => p.color === playerColor).length;
-
-  useEffect(() => {
-    if (initial.status === 'active' && initial.ply <= 1) playSound('start');
-  }, [initial]);
+  const latestNote = [...notes.notes.entries()].pop();
 
   useEffect(() => {
     if (!intro) return;
@@ -112,7 +101,7 @@ function GameView({ initial, token }) {
     return () => clearTimeout(t);
   }, [intro]);
 
-  // A premove queued while the bot was "thinking" fires as soon as it's our
+  // A premove queued while Gary was "thinking" fires as soon as it's our
   // turn. Board's own effect (a child, so it runs first) has already handed
   // chessground the new legal moves by now.
   useEffect(() => {
@@ -120,22 +109,12 @@ function GameView({ initial, token }) {
   }, [myTurn]);
 
   useEffect(() => {
-    document.title = myTurn ? "Your turn · Fool's Mate" : "Fool's Mate";
+    document.title = myTurn ? "Your move · Fool's Mate" : "Fool's Mate";
     return () => void (document.title = "Fool's Mate");
   }, [myTurn]);
 
-  const finish = useCallback((g, afterBotMove) => {
-    setBubble(quip(END_QUIP[g.result]));
-    setTimeout(() => {
-      if (!alive.current) return;
-      if (g.result === 'mated') {
-        playSound('success');
-        confetti();
-      } else if (g.result !== 'resigned') {
-        playSound('fail');
-      }
-      setEndOpen(true);
-    }, afterBotMove ? 700 : 450);
+  const finish = useCallback((afterBotMove) => {
+    setTimeout(() => alive.current && setSlipOpen(true), afterBotMove ? 700 : 400);
   }, []);
 
   async function submit(uci) {
@@ -149,10 +128,8 @@ function GameView({ initial, token }) {
     setPending(uci);
     playSound(soundForMove(m, chess.inCheck()));
     const afterFen = chess.fen();
-    const over = chess.isGameOver();
-    const o = over ? null : matingMoves(afterFen);
-    setOdds(o ? { ...o, phase: 'thinking' } : null);
-    if (!over) setBubble(quip(chess.inCheck() ? 'inCheck' : 'thinking'));
+    const options = chess.isGameOver() ? null : matingMoves(afterFen);
+    setTally(options ? { ...options, phase: 'thinking' } : null);
 
     const started = performance.now();
     const ply = game.ply;
@@ -160,8 +137,8 @@ function GameView({ initial, token }) {
       const { game: next } = await api.move(game.id, token, ply, uci);
       const botMoved = next.moves.length === ply + 2;
       // The server answers instantly; the pause is theatre. Longer when a mate
-      // is on the table, for suspense.
-      const pause = botMoved ? 320 + Math.random() * 420 + (o?.mates ? 750 : 0) : 100;
+      // is on the table, so you get a moment to look at the red marks.
+      const pause = botMoved ? 320 + Math.random() * 420 + (options?.mates ? 900 : 0) : 100;
       await sleep(Math.max(0, pause - (performance.now() - started)));
       if (!alive.current) return;
       setGame(next);
@@ -171,15 +148,14 @@ function GameView({ initial, token }) {
         const bm = playUci(c, next.moves[next.moves.length - 1]);
         if (bm) {
           playSound(soundForMove(bm, c.inCheck()));
-          setBubble(quip(botQuipKind(next, bm, c, o, afterFen)));
+          setTally({ ...options, phase: 'done', picked: bm.san, pickedLabel: moveLabel(ply + 1, bm.san) });
         }
-        setOdds(o ? { ...o, phase: 'done', hit: next.result === 'mated' } : null);
       }
-      if (next.status === 'finished') finish(next, botMoved);
+      if (next.status === 'finished') finish(botMoved);
     } catch (err) {
       if (!alive.current) return;
       setPending(null);
-      setOdds(null);
+      setTally(null);
       if (err.game) setGame(err.game);
       toast(err.message);
     }
@@ -200,7 +176,7 @@ function GameView({ initial, token }) {
     try {
       const { game: g } = await api.resign(game.id, token);
       setGame(g);
-      finish(g, false);
+      finish(false);
     } catch (e) {
       toast(e.message);
     }
@@ -227,9 +203,8 @@ function GameView({ initial, token }) {
     side === playerColor ? (
       <PlayerBar
         side={side}
-        avatar={<PlayerAvatar name={game.name} />}
         name={game.name}
-        tag="You"
+        tag="you"
         material={mat}
         active={active && sideToMove === side}
         right={
@@ -241,16 +216,14 @@ function GameView({ initial, token }) {
     ) : (
       <PlayerBar
         side={side}
-        avatar={<BotAvatar />}
         name={BOT.name}
         tag={BOT.rating}
         material={mat}
         active={active && sideToMove === side}
-        status={(pending || intro) && active ? <Thinking /> : null}
+        status={(pending || intro) && active ? <span className="typing">thinking</span> : null}
       />
     );
   const topSide = orientation === 'white' ? 'b' : 'w';
-  const copy = resultCopy(game);
 
   return (
     <>
@@ -269,7 +242,7 @@ function GameView({ initial, token }) {
             check={check}
             // Always on while live (chessground only premoves off-turn), so a
             // drag started right after your move isn't lost before React
-            // re-renders with the bot to move.
+            // re-renders with Gary to move.
             premove={active && view === null && !intro}
             onMove={onMove}
           >
@@ -287,68 +260,45 @@ function GameView({ initial, token }) {
             )}
             {view !== null && (
               <button type="button" className="board-banner" onClick={() => setView(null)}>
-                Viewing move {Math.floor(view / 2) + 1}. Back to the game →
+                Looking at move {Math.floor(view / 2) + 1}. Back to the game
               </button>
             )}
           </Board>
         }
         side={
-          <div className="side-card">
-            <div className="bot-chat">
-              <BotAvatar size={44} />
-              <div className="bubble" key={bubble}>{bubble}</div>
+          <div className="sheet">
+            <div className="sheet-head">
+              <span>Scoresheet</span>
+              <span>{playerColor === 'w' ? `${game.name} v ${BOT.name}` : `${BOT.name} v ${game.name}`}</span>
             </div>
-            {settings.odds && <OddsStrip odds={odds} stats={stats} active={active} />}
+            {settings.odds && (active || tally) && <Tally data={tally} />}
+            {latestNote && <p className="latest-note">{latestNote[1]}</p>}
             <MoveList
               plies={plies}
               current={shown}
               onSelect={go}
-              empty={!active ? 'No moves were played.' : playerColor === 'w' ? 'Your move. Try to lose quickly.' : `${BOT.name} is choosing an opening…`}
-              footer={!active && (
-                <>
-                  <div className="result-score">{scoreline(game)}</div>
-                  <div className={`result-text ${copy.tone}`}>{copy.title}</div>
-                </>
-              )}
+              marks={notes.marks}
+              notes={notes.notes}
+              empty={!active ? 'No moves were played.' : playerColor === 'w' ? 'Your move.' : `${BOT.name} has White.`}
+              footer={!active && <ResultLine game={game} />}
             />
             <NavControls ply={shown} last={lastIdx} onGo={go} onFlip={flip} />
-            <div className={`side-actions${active ? '' : ' finished'}`}>
+            <div className="sheet-actions">
               {active ? (
                 confirmResign ? (
                   <div className="confirm-row">
-                    <span>Give up on losing?</span>
-                    <button type="button" className="btn btn-danger" onClick={resign}>Yes</button>
+                    <span>Resign this game?</span>
+                    <button type="button" className="btn btn-ink" onClick={resign}>Yes</button>
                     <button type="button" className="btn" onClick={() => setConfirmResign(false)}>No</button>
                   </div>
                 ) : (
-                  <button type="button" className="btn btn-ghost" onClick={() => setConfirmResign(true)}>
-                    <IconFlag /> Give up
-                  </button>
+                  <button type="button" className="btn btn-quiet" onClick={() => setConfirmResign(true)}>Resign</button>
                 )
               ) : (
                 <>
-                  <button type="button" className="btn btn-primary" onClick={playAgain} disabled={busy}>
-                    <IconPlus /> Play again
-                  </button>
-                  <Link className="btn" to={`/replay/${game.id}`}>
-                    <IconReplay /> Replay
-                  </Link>
-                  {game.result === 'mated' && (
-                    <Link className="btn" to="/leaderboard">
-                      <IconTrophy /> #{game.rank}
-                    </Link>
-                  )}
-                  <button
-                    type="button"
-                    className="btn icon-only"
-                    title="Copy replay link"
-                    onClick={() => {
-                      const link = `${location.origin}/replay/${game.id}`;
-                      navigator.clipboard?.writeText(link).then(() => toast('Replay link copied.'), () => toast(link));
-                    }}
-                  >
-                    <IconLink />
-                  </button>
+                  <button type="button" className="btn btn-ink" onClick={playAgain} disabled={busy}>Play again</button>
+                  <Link className="btn" to={`/replay/${game.id}`}>Replay</Link>
+                  {game.result === 'mated' && <Link className="btn" to="/standings">Standings</Link>}
                 </>
               )}
             </div>
@@ -356,14 +306,14 @@ function GameView({ initial, token }) {
         }
       />
       {game.status === 'finished' && (
-        <EndModal
-          open={endOpen}
+        <ResultSlip
+          open={slipOpen}
           game={game}
           token={token}
-          finalOdds={odds?.hit ? odds : null}
-          closeCalls={stats.closeCalls}
-          onClose={() => setEndOpen(false)}
-          onGame={(g) => setGame(g)}
+          closeCalls={notes.closeCalls}
+          finalOdds={tally?.phase === 'done' && game.result === 'mated' ? tally : null}
+          onClose={() => setSlipOpen(false)}
+          onGame={setGame}
           onPlayAgain={playAgain}
           busy={busy}
         />
@@ -372,65 +322,18 @@ function GameView({ initial, token }) {
   );
 }
 
-function botQuipKind(next, bm, chess, odds, fenBefore) {
-  if (next.result === 'mated') return 'botWins';
-  if (odds?.mates) return 'missedMate';
-  if (bm.promotion) return bm.promotion === 'q' ? 'promote' : 'underpromote';
-  if (chess.inCheck()) return 'check';
-  if (bm.captured) return 'capture';
-  if (bm.san.startsWith('O-O')) return 'castle';
-  if (new Chess(fenBefore).moves({ verbose: true }).some((m) => m.captured === 'q')) return 'ignoredQueen';
-  return 'move';
-}
+const RESULT_WORDS = {
+  mated: (g) => `Checkmated in ${g.playerMoves}`,
+  won: () => `Checkmated ${BOT.name} (void)`,
+  draw: () => 'Drawn',
+  resigned: () => 'Resigned',
+};
 
-export function scoreline(game) {
-  if (game.result === 'draw') return '½–½';
-  const winner = game.result === 'won' ? game.playerColor : other(game.playerColor);
-  return winner === 'w' ? '1–0' : '0–1';
-}
-
-export function Thinking() {
+export function ResultLine({ game }) {
   return (
-    <span className="thinking" aria-label="thinking">
-      <i />
-      <i />
-      <i />
-    </span>
-  );
-}
-
-function OddsStrip({ odds, stats, active }) {
-  const p = odds?.total ? odds.mates / odds.total : 0;
-  let text;
-  if (odds?.phase === 'thinking') {
-    text = odds.mates ? (
-      <><b>{odds.mates}</b> of {odds.total} moves mate you. <b>{pct(p)}</b></>
-    ) : (
-      <>None of its {odds.total} moves mate you.</>
-    );
-  } else if (odds?.phase === 'done') {
-    text = odds.hit ? (
-      <>It found the mate! <b>{odds.mates}/{odds.total}</b></>
-    ) : odds.mates ? (
-      <>Missed it! <b>{odds.mates}/{odds.total}</b> moves were mate.</>
-    ) : (
-      <>No mate was available.</>
-    );
-  } else {
-    text = active ? <>Make a move. Then hope.</> : <>Game over.</>;
-  }
-  return (
-    <div className={`odds${odds?.mates ? ' hot' : ''}${odds?.phase === 'done' && odds.mates && !odds.hit ? ' missed' : ''}`}>
-      <div className="odds-head">
-        <span>Mate chance</span>
-        <span className="odds-meta">
-          Close calls <b>{stats.closeCalls}</b> · Best <b>{pct(stats.bestOdds)}</b>
-        </span>
-      </div>
-      <div className="odds-bar">
-        <span style={{ width: `${odds?.mates ? Math.max(3, p * 100) : 0}%` }} />
-      </div>
-      <div className="odds-text">{text}</div>
-    </div>
+    <>
+      <span className="result-score">{scoreline(game)}</span>
+      <span className={`result-words ${game.result}`}>{RESULT_WORDS[game.result]?.(game)}</span>
+    </>
   );
 }
