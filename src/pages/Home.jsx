@@ -44,7 +44,7 @@ export default function Home() {
     api.daily().then((d) => setDaily(d.daily), (e) => setError(e.message));
     api.leaderboard({ daily: 'today', limit: 10 }).then((d) => setBoard(d.entries), () => setBoard([]));
     api.stats().then(setStats, () => {});
-    api.games({ scope: 'recent', limit: 8 }).then((d) => setRecent(d.games), () => setRecent([]));
+    api.games({ scope: 'losses', limit: 8 }).then((d) => setRecent(d.games), () => setRecent([]));
     const ids = myGameIds().slice(0, 20);
     if (ids.length) {
       api.games({ ids: ids.join(',') }).then(
@@ -195,17 +195,17 @@ export default function Home() {
           </p>
         </div>
         <div className="col">
-          <h3 className="col-head">Latest results</h3>
+          <h3 className="col-head">Latest losses</h3>
           {recent === null ? (
             <p className="muted">Loading…</p>
           ) : recent.length === 0 ? (
-            <p className="muted">No games finished yet.</p>
+            <p className="muted">Nobody has been checkmated yet.</p>
           ) : (
             <ul className="results">
               {recent.map((g) => <ResultRow key={g.id} game={g} />)}
             </ul>
           )}
-          <Link className="col-more" to="/archive">The archive</Link>
+          <Link className="col-more" to="/archive">Every game, in the archive</Link>
         </div>
       </section>
     </div>

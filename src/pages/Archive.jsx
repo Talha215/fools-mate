@@ -7,9 +7,11 @@ import { Link } from '../lib/router.jsx';
 
 const SHORT_REASON = { stalemate: 'stalemate', repetition: 'repetition', fifty: '50 moves', insufficient: 'no material' };
 
+// "daily No. 3, mated in 4, try 7" (tries only come with the losses feed,
+// where a daily line is always that name's new best for the day).
 function describe(g) {
   const d = g.mode === 'daily' ? `daily No. ${g.dailyNumber}, ` : g.mode === 'endless' ? 'endless, ' : '';
-  return d + describeResult(g);
+  return d + describeResult(g) + (g.tries ? `, try ${g.tries}` : '');
 }
 
 function describeResult(g) {
@@ -41,17 +43,23 @@ export default function Archive() {
   const [live, setLive] = useState(null);
   const [recent, setRecent] = useState(null);
   const [mine, setMine] = useState(null);
+  const [showResigned, setShowResigned] = useState(false);
 
   useEffect(() => {
     const loadLive = () => api.games({ scope: 'live', limit: 12 }).then((d) => setLive(d.games), () => setLive([]));
     loadLive();
     const t = setInterval(loadLive, 10000);
-    api.games({ scope: 'recent', limit: 40 }).then((d) => setRecent(d.games), () => setRecent([]));
+
     const ids = myGameIds().slice(0, 30);
     if (ids.length) api.games({ ids: ids.join(',') }).then((d) => setMine(d.games), () => setMine([]));
     else setMine([]);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    setRecent(null);
+    api.games({ scope: 'recent', limit: 40, resigned: showResigned ? 1 : '' }).then((d) => setRecent(d.games), () => setRecent([]));
+  }, [showResigned]);
 
   return (
     <div className="page">
@@ -60,16 +68,27 @@ export default function Archive() {
       <div className="archive">
         <Section title="In play now" games={live} empty="Nobody is playing right now." />
         <Section title="Your games" games={mine} empty="Games you play on this device will be listed here." />
-        <Section title="Results" games={recent} empty="No games have finished yet." />
+        <Section
+          title="Results"
+          games={recent}
+          empty="No games have finished yet."
+          extra={
+            <label className="check-row">
+              <input type="checkbox" checked={showResigned} onChange={(e) => setShowResigned(e.target.checked)} />
+              Show resigned games
+            </label>
+          }
+        />
       </div>
     </div>
   );
 }
 
-function Section({ title, games, empty }) {
+function Section({ title, games, empty, extra }) {
   return (
     <section className="archive-section">
       <h3 className="col-head">{title}</h3>
+      {extra}
       {games === null ? (
         <p className="muted">Loading…</p>
       ) : games.length === 0 ? (

@@ -63,7 +63,6 @@ function GameView({ initial, token }) {
   const [promo, setPromo] = useState(null);
   const [tally, setTally] = useState(null); // Gary's options for the current turn (see Tally)
   const [slipOpen, setSlipOpen] = useState(false);
-  const [confirmResign, setConfirmResign] = useState(false);
   const [busy, setBusy] = useState(false);
   // Intro for a fresh game: how many of the server's moves are on show yet
   // (null = all). As Black, the empty board first, then Gary's opening move.
@@ -190,15 +189,16 @@ function GameView({ initial, token }) {
     submit(orig + dest);
   }
 
-  async function resign() {
-    setConfirmResign(false);
+  // One click: resign this game and go straight into the next one, with no
+  // confirmation and no result slip. Playtesters restart a lot.
+  async function resignAndReplay() {
+    setBusy(true);
     try {
-      const { game: g } = await api.resign(game.id, token);
-      setGame(g);
-      finish(false);
-    } catch (e) {
-      toast(e.message);
+      await api.resign(game.id, token);
+    } catch {
+      /* already over, or a hiccup: start the next game anyway */
     }
+    await playAgain();
   }
 
   async function playAgain() {
@@ -307,15 +307,15 @@ function GameView({ initial, token }) {
             <NavControls ply={shown} last={lastIdx} onGo={go} onFlip={flip} />
             <div className="sheet-actions">
               {active ? (
-                confirmResign ? (
-                  <div className="confirm-row">
-                    <span>Resign this game?</span>
-                    <button type="button" className="btn btn-ink" onClick={resign}>Yes</button>
-                    <button type="button" className="btn" onClick={() => setConfirmResign(false)}>No</button>
-                  </div>
-                ) : (
-                  <button type="button" className="btn btn-quiet" onClick={() => setConfirmResign(true)}>Resign</button>
-                )
+                <button type="button" className="btn btn-restart" onClick={resignAndReplay} disabled={busy}>
+                  {busy
+                    ? 'Setting up…'
+                    : game.mode === 'daily'
+                      ? 'Resign and try again'
+                      : game.mode === 'endless'
+                        ? 'Resign, next position'
+                        : 'Resign and play again'}
+                </button>
               ) : (
                 <>
                   <button type="button" className="btn btn-ink" onClick={playAgain} disabled={busy}>

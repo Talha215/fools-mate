@@ -142,8 +142,24 @@ async function listGames(env, url) {
   } else if (url.searchParams.get('scope') === 'live') {
     rows = await all(env, `SELECT * FROM games WHERE status = 'active' AND updated_at > ? ORDER BY updated_at DESC LIMIT ?`,
       [Date.now() - LIVE_WINDOW_MS, limit]);
+  } else if (url.searchParams.get('scope') === 'losses') {
+    // The front page's "Latest losses": successful checkmates only. A daily
+    // one is listed only if it was that name's new best for the day, so one
+    // person's thirty tries don't fill the column.
+    rows = await all(env, `
+      SELECT g.*, CASE WHEN g.mode = 'daily' THEN (
+               SELECT COUNT(*) FROM games t WHERE t.mode = 'daily' AND t.daily_date = g.daily_date
+                 AND lower(t.name) = lower(g.name) AND t.created_at <= g.created_at) END AS tries
+      FROM games g
+      WHERE g.result = 'mated' AND (g.mode != 'daily' OR NOT EXISTS (
+        SELECT 1 FROM games p WHERE p.mode = 'daily' AND p.daily_date = g.daily_date AND lower(p.name) = lower(g.name)
+          AND p.result = 'mated' AND p.player_moves <= g.player_moves AND p.ended_at < g.ended_at))
+      ORDER BY g.ended_at DESC LIMIT ?`, [limit]);
+    return { games: rows.map((r) => ({ ...summary(r), tries: r.tries ?? undefined })) };
   } else {
-    rows = await all(env, `SELECT * FROM games WHERE status = 'finished' ORDER BY ended_at DESC LIMIT ?`, [limit]);
+    // Finished games; resignations (mostly "start again") only on request.
+    const resigned = url.searchParams.get('resigned') === '1' ? '' : `AND result != 'resigned'`;
+    rows = await all(env, `SELECT * FROM games WHERE status = 'finished' ${resigned} ORDER BY ended_at DESC LIMIT ?`, [limit]);
   }
   return { games: rows.map(summary) };
 }

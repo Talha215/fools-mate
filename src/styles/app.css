@@ -364,8 +364,7 @@ input:focus { border-bottom-width: 2.5px; padding-bottom: 3px; }
 .sheet-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--hair); }
 .sheet-actions .btn-ink { flex: 1 0 100%; }
 .sheet-actions .btn:not(.btn-ink):not(.btn-quiet) { flex: 1; }
-.confirm-row { display: flex; align-items: center; gap: 8px; width: 100%; }
-.confirm-row span { flex: 1; font-weight: 700; }
+.btn-restart { flex: 1 0 100%; }
 
 /* ------------------------------------------------------------- result slip */
 
