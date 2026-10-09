@@ -38,10 +38,12 @@ export function useAnnotations(plies, playerColor) {
       }
       if (!r.mates) return;
       if (i > 0) marks.set(i - 1, '!');
-      // Mates are always checks, so Gary was choosing between his checks.
+      // Past the random opening, mates are always checks, so Gary was choosing
+      // between his checks; in the opening he was choosing between all moves.
       const n = r.pool.length;
       if (p.san.endsWith('#')) {
-        notes.set(i, n === 1 ? 'The only check was mate.' : `${cap(word(r.mates))} of ${word(n)} checks mated here.`);
+        const what = r.kind === 'check' ? 'checks' : 'moves';
+        notes.set(i, n === 1 ? `The only ${what.slice(0, -1)} was mate.` : `${cap(word(r.mates))} of ${word(n)} ${what} mated here.`);
       } else {
         closeCalls++;
         marks.set(i, '??');

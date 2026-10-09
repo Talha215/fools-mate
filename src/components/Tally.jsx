@@ -23,7 +23,10 @@ export default function Tally({ data }) {
   const checks = data.kind === 'check';
   let text;
   if (data.phase === 'thinking') {
-    if (checks && n === 1) text = data.mates ? `${BOT.name}'s only check is mate.` : `${BOT.name} has one check, and it isn't mate.`;
+    if (data.kind === 'opening') {
+      text = `${BOT.name}'s first three moves are random. `;
+      text += data.mates ? `${cap(word(data.mates))} of these ${n} ${data.mates === 1 ? 'is' : 'are'} mate.` : 'None of these is mate.';
+    } else if (checks && n === 1) text = data.mates ? `${BOT.name}'s only check is mate.` : `${BOT.name} has one check, and it isn't mate.`;
     else if (checks) text = data.mates ? `${cap(word(data.mates))} of these ${n} checks ${data.mates === 1 ? 'is' : 'are'} mate.` : `None of these ${n} checks is mate.`;
     else if (data.kind === 'charge') text = `No checks, so ${BOT.name} will move one of these ${n} toward your king.`;
     else text = `No checks, and nothing can get closer to your king, so any of these ${n} will do.`;
@@ -36,7 +39,7 @@ export default function Tally({ data }) {
     <div className={`tally ${data.phase}`}>
       <div className="tally-head">
         {checks ? `${BOT.name}'s checks` : `${BOT.name}'s options`}
-        <span>{checks ? `${data.mates} of ${n} mate` : 'no checks'}</span>
+        <span>{checks || data.kind === 'opening' ? `${data.mates} of ${n} mate` : 'no checks'}</span>
       </div>
       <div className="tally-marks" aria-hidden="true">
         {data.pool.map((m, i) => (

@@ -122,19 +122,32 @@ test('Gary only ever plays legal moves (fuzz)', () => {
   }
 });
 
-test("Gary plays his only check, so fool's mate is forced after 1.f3 e5 2.g4", () => {
-  const o = garyOptions(after('f3', 'e5', 'g4'));
+test("Gary's first three moves are random, so fool's mate is a 1-in-30 shot, not forced", () => {
+  const c = after('f3', 'e5', 'g4');
+  const o = garyOptions(c);
+  assert.equal(o.kind, 'opening');
+  assert.equal(o.pool.length, c.moves().length);
+  assert.equal(o.mates, 1);
+  // Scholar-style mate when Gary has White: his 3rd move is random too.
+  const s = after('e4', 'f6', 'a3', 'g5');
+  assert.equal(garyOptions(s).kind, 'opening');
+  assert.equal(garyOptions(s).mates, 1);
+});
+
+test('from his 4th move, Gary plays his only check', () => {
+  // The same fool's mate trap, three moves later.
+  const o = garyOptions(after('a3', 'a6', 'h3', 'h6', 'f3', 'e5', 'g4'));
   assert.equal(o.kind, 'check');
   assert.deepEqual(o.pool.map((m) => m.uci), ['d8h4']);
   assert.equal(o.mates, 1);
 });
 
-test('with no checks, Gary moves a non-king piece toward your king', () => {
-  // Black's first move: every one of the 20 brings a piece closer to e1.
-  const o = garyOptions(after('f3'));
+test('from his 4th move, with no checks, Gary moves a non-king piece toward your king', () => {
+  const o = garyOptions(after('a3', 'a6', 'h3', 'h6', 'b3', 'b6', 'c3'));
   assert.equal(o.kind, 'charge');
-  assert.equal(o.pool.length, 20);
-  assert.equal(o.mates, 0);
+  const d = (a, b) => Math.max(Math.abs(a.charCodeAt(0) - b.charCodeAt(0)), Math.abs(a.charCodeAt(1) - b.charCodeAt(1)));
+  assert.ok(o.pool.length > 0);
+  assert.ok(o.pool.every((m) => m.piece !== 'k' && d(m.to, 'e1') < d(m.from, 'e1')));
 });
 
 test("Gary's options follow his rules in every position (fuzz)", () => {
@@ -149,7 +162,10 @@ test("Gary's options follow his rules in every position (fuzz)", () => {
       const lan = new Set(legal.map((m) => m.lan));
       for (const m of o.pool) assert.ok(lan.has(m.uci), `${m.uci} is not legal in ${chess.fen()}`);
       const checks = legal.filter((m) => /[+#]$/.test(m.san));
-      if (checks.length) {
+      if (chess.moveNumber() <= 3) {
+        assert.equal(o.kind, 'opening');
+        assert.equal(o.pool.length, legal.length);
+      } else if (checks.length) {
         assert.equal(o.kind, 'check');
         assert.equal(o.pool.length, checks.length);
       } else if (o.kind === 'charge') {

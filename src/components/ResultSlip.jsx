@@ -52,10 +52,11 @@ export default function ResultSlip({ open, game, token, finalOdds, closeCalls, o
     if (game.playerMoves === 2) lines.push('That is the shortest game possible.');
     if (finalOdds) {
       const n = finalOdds.pool.length;
+      const what = finalOdds.kind === 'check' ? 'check' : 'move';
       lines.push(
         n === 1
-          ? `${BOT.name}'s only check was mate.`
-          : `${BOT.name} had ${word(n)} checks to choose from, and ${finalOdds.mates === 1 ? 'one was' : `${word(finalOdds.mates)} were`} mate.`,
+          ? `${BOT.name}'s only ${what} was mate.`
+          : `${BOT.name} had ${word(n)} ${what}s to choose from, and ${finalOdds.mates === 1 ? 'one was' : `${word(finalOdds.mates)} were`} mate.`,
       );
     }
     if (closeCalls) lines.push(`Before that, ${BOT.name} missed ${plural(closeCalls, 'mate')}.`);

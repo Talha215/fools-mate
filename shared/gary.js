@@ -1,5 +1,9 @@
 // Gary's one idea, shared by the Worker (which picks his move) and the
-// browser (which shows his options). Gary attacks the king:
+// browser (which shows his options).
+//   0. His first RANDOM_MOVES moves are any legal move. Without this, the
+//      check rule forces the quickest mates (1.f3 e5 2.g4 Qh4#, and as White
+//      1.e4 .. 2.? .. 3.Qh5#) about one game in ten, and people farm them.
+// After that Gary attacks the king:
 //   1. If he can give check, he plays one of his checks.
 //   2. Otherwise he moves a piece (never his king) closer to your king.
 //   3. If nothing can get closer, any legal move will do.
@@ -9,10 +13,14 @@
 // Destination square and promotion piece at the end of a SAN move.
 const SAN_TARGET = /([a-h][1-8])(?:=([QRBN]))?[+#]?$/;
 
+// Gary's first three moves are random: the quickest possible losses are
+// mated on his 2nd move (as White) or his 3rd (as Black), so three covers both.
+export const RANDOM_MOVES = 3;
+
 // King-move distance between two squares.
 const dist = (a, b) => Math.max(Math.abs(a.charCodeAt(0) - b.charCodeAt(0)), Math.abs(a.charCodeAt(1) - b.charCodeAt(1)));
 
-// Returns { kind: 'check' | 'charge' | 'any', pool, mates, mating, legal }:
+// Returns { kind: 'opening' | 'check' | 'charge' | 'any', pool, mates, mating, legal }:
 // pool is the group Gary picks from, each move as
 // { from, to, promotion, uci, san, piece, check, mate }.
 //
@@ -35,6 +43,9 @@ export function garyOptions(chess) {
       for (const san of chess.moves({ square: p.square })) moves.push(describe(p, san));
     }
   }
+  // The fullmove number is the number of the move Gary is about to make,
+  // for either colour.
+  if (chess.moveNumber() <= RANDOM_MOVES) return group('opening', moves, moves.length);
   const checks = moves.filter((m) => m.check);
   if (checks.length) return group('check', checks, moves.length);
   const closer = moves.filter((m) => m.piece !== 'k' && dist(m.to, enemyKing) < dist(m.from, enemyKing));

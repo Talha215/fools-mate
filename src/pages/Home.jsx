@@ -110,8 +110,9 @@ export default function Home() {
           <div className="story">
             <p>
               {BOT.name} is the club computer. It knows the rules of chess and one plan, which is to attack your king.
-              If it can give check, it does, picking one of its checks at random. If it can't, it moves a piece toward
-              your king, also at random.
+              It takes three moves to remember the plan, and plays anything at all until then. After that, if it can
+              give check, it does, picking one of its checks at random. If it can't, it moves a piece toward your king,
+              also at random.
             </p>
             <p>
               The object is to get checkmated by {BOT.name} in as few moves as you can. Checkmating {BOT.name} doesn't
@@ -238,8 +239,8 @@ function Problem() {
         {solved && step === plies.length - 1 && <PenCircle className="solution-ring" />}
       </button>
       <p className="problem-note">
-        {BOT.name} has to open with 1…e5 or 1…e6, which happens about one game in ten. After 2.g4, its only check is
-        the mate.
+        {BOT.name}'s first three moves are random, so it has to stumble onto 1…e5 or 1…e6 and then Qh4. That
+        happens about once in three hundred games.
       </p>
     </figure>
   );

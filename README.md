@@ -3,8 +3,9 @@
 Chess against **Gary**, a computer with one plan: if it can give check it does (picking one of
 its checks at random), and otherwise it moves a random piece toward your king.
 The goal is upside down: **get checkmated in as few of your own moves as possible.**
-The theoretical best is 2 (Fool's Mate: 1. f3 e5 2. g4?? Qh4#). Gary has to open 1…e5 or 1…e6
-(about 1 game in 10); after 2.g4 its only check is the mate.
+Gary's first three moves are completely random (otherwise the check rule would force the quickest
+mates about one game in ten). The theoretical best is 2 (Fool's Mate: 1. f3 e5 2. g4?? Qh4#), about
+1 game in 300.
 
 - Getting checkmated: success, goes in the standings, scored by your move count (ties: faster game).
 - Checkmating the bot, stalemate, threefold repetition, 50-move rule, insufficient material: fail.
