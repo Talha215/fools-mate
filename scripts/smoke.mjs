@@ -69,7 +69,11 @@ assert.equal((await api(`/api/games/${g2.data.game.id}/name`, { token: g2.data.t
 assert.equal((await api(`/api/games/${g2.data.game.id}`)).data.game.token, undefined);
 assert.ok(Array.isArray((await api('/api/leaderboard')).data.entries));
 assert.ok(Array.isArray((await api('/api/leaderboard?unique=1&color=w')).data.entries));
-assert.ok((await api('/api/games?scope=recent')).data.games.length >= 2);
+// Finished games hide resignations unless asked for; the losses feed is mates only.
+const recent = (await api('/api/games?scope=recent')).data.games;
+assert.ok(recent.length >= 1 && recent.every((g) => g.result !== 'resigned'));
+assert.ok((await api('/api/games?scope=recent&resigned=1')).data.games.some((g) => g.result === 'resigned'));
+assert.ok((await api('/api/games?scope=losses')).data.games.every((g) => g.result === 'mated'));
 const stats = (await api('/api/stats')).data;
 assert.ok(stats.games >= 2);
 assert.equal((await api('/api/games/doesnotexist1')).status, 404);
