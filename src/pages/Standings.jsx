@@ -6,6 +6,7 @@ import { formatDuration } from '../lib/chess.js';
 import { myGameIds } from '../lib/myGames.js';
 import { Link } from '../lib/router.jsx';
 import { toast } from '../lib/toast.jsx';
+import PlayerSearch, { playerPath } from '../components/PlayerSearch.jsx';
 
 const BOARDS = [
   ['daily', 'Daily'],
@@ -30,14 +31,20 @@ function Rank({ n }) {
   );
 }
 
+// The name opens the player's page; Anonymous isn't a player, so no link.
+function NameLink({ name }) {
+  return name === 'Anonymous' ? <span className="st-name">{name}</span> : <Link className="st-name" to={playerPath(name)}>{name}</Link>;
+}
+
 // One line of the standings, newspaper style: rank, name, dot leaders, score.
+// The name goes to the player; the score to the game's replay.
 export function StandingsRow({ entry: e, rank, compact = false, mine = false }) {
   return (
     <li className={`st-row${mine ? ' mine' : ''}`}>
-      <Link to={`/replay/${e.id}`}>
-        <Rank n={rank} />
-        <span className="st-name">{e.name}</span>
-        <span className="st-dots" aria-hidden="true" />
+      <Rank n={rank} />
+      <NameLink name={e.name} />
+      <span className="st-dots" aria-hidden="true" />
+      <Link className="st-score" to={`/replay/${e.id}`} title="Watch the replay">
         <span className="st-moves">{e.playerMoves}</span>
         {!compact && <span className="st-side">{e.playerColor === 'w' ? 'White' : 'Black'}</span>}
         {!compact && <span className="st-time">{formatDuration(e.durationMs)}</span>}
@@ -51,10 +58,10 @@ export function StandingsRow({ entry: e, rank, compact = false, mine = false }) 
 export function DailyRow({ entry: e, rank, mine = false }) {
   return (
     <li className={`st-row${mine ? ' mine' : ''}`}>
-      <Link to={`/replay/${e.id}`}>
-        <Rank n={rank} />
-        <span className="st-name">{e.name}</span>
-        <span className="st-dots" aria-hidden="true" />
+      <Rank n={rank} />
+      <NameLink name={e.name} />
+      <span className="st-dots" aria-hidden="true" />
+      <Link className="st-score" to={`/replay/${e.id}`} title="Watch the replay">
         <span className="st-moves">{e.playerMoves}</span>
         <span className="st-tries">try {e.tries}</span>
         <span className="st-time">{formatDuration(e.durationMs)}</span>
@@ -65,10 +72,12 @@ export function DailyRow({ entry: e, rank, mine = false }) {
 
 export default function Standings() {
   // The Daily first; ?board=classic links straight to the classic standings.
-  const [boardKind, setBoardKind] = useState(() => (new URLSearchParams(location.search).get('board') === 'classic' ? 'classic' : 'daily'));
+  // ?daily=2026-10-09 opens a particular day (from a player's page).
+  const params = new URLSearchParams(location.search);
+  const [boardKind, setBoardKind] = useState(() => (params.get('board') === 'classic' ? 'classic' : 'daily'));
   const [color, setColor] = useState('');
   const [unique, setUnique] = useState(true);
-  const [day, setDay] = useState(todayUTC);
+  const [day, setDay] = useState(() => (/^\d{4}-\d\d-\d\d$/.test(params.get('daily') || '') ? params.get('daily') : todayUTC()));
   const [entries, setEntries] = useState(null);
   const [number, setNumber] = useState(null);
   const daily = boardKind === 'daily';
@@ -109,6 +118,9 @@ export default function Standings() {
           ? `The Daily, one line per name: fewest moves, then fewest tries, then the faster game.`
           : `Classic, from the first move: fewest moves to get checkmated by ${BOT.name}. Ties go to the faster game.`}
       </p>
+      <div className="player-search-row">
+        <PlayerSearch />
+      </div>
       <div className="filters">
         <div className="tabs" role="tablist">
           {BOARDS.map(([k, label]) => (

@@ -218,3 +218,13 @@ test('a daily game counts only the player moves after the hand-over', async () =
   assert.equal(playerMoveCount(r.state), 1);
   assert.equal(r.state.startPly, s.startPly);
 });
+
+test('no daily in the checked window has a forced 1-move loss, and the window runs a year ahead', async () => {
+  const { dailyPosition, forcedLossInOne, CHECKED_UNTIL, DAILY_EPOCH } = await import('../shared/daily.js');
+  const yearAhead = new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10);
+  assert.ok(CHECKED_UNTIL >= yearAhead, `Extend the window: run scripts/check-dailies.mjs (checked until ${CHECKED_UNTIL})`);
+  for (let t = Date.parse(`${DAILY_EPOCH}T00:00:00Z`); t <= Date.parse(`${CHECKED_UNTIL}T00:00:00Z`); t += 86400000) {
+    const date = new Date(t).toISOString().slice(0, 10);
+    assert.ok(!forcedLossInOne(new Chess(dailyPosition(date).fen)), `${date} has a forced 1-move loss`);
+  }
+});

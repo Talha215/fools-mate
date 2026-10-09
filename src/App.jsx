@@ -2,6 +2,7 @@ import Header from './components/Header.jsx';
 import Archive from './pages/Archive.jsx';
 import Classic from './pages/Classic.jsx';
 import Endless from './pages/Endless.jsx';
+import Player from './pages/Player.jsx';
 import GamePage from './pages/Game.jsx';
 import Home from './pages/Home.jsx';
 import ReplayPage from './pages/Replay.jsx';
@@ -22,6 +23,7 @@ export default function App() {
   // The front page is the Daily; /daily still works as a link to it.
   else if (path === '/' || path === '/daily') page = <Home />;
   else if (path === '/endless') page = <Endless />;
+  else if ((m = path.match(/^\/player\/([^/]+)\/?$/))) page = <Player key={m[1]} name={decodeURIComponent(m[1])} />;
   else if (path === '/classic') page = <Classic />;
   else {
     page = (

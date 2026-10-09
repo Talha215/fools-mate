@@ -4,6 +4,7 @@ import { BOT } from '../../shared/bot.js';
 import { replay } from '../../shared/rules.js';
 import Board from '../components/Board.jsx';
 import { ResultRow } from './Archive.jsx';
+import { playerPath } from '../components/PlayerSearch.jsx';
 import { DailyRow } from './Standings.jsx';
 import { word } from '../lib/annotate.js';
 import { checkColor } from '../lib/chess.js';
@@ -160,7 +161,13 @@ export default function Home() {
           <button type="submit" className="btn btn-ink btn-big" disabled={busy || !daily}>
             {busy ? 'Setting up…' : mine ? 'Try again' : `Play ${BOT.name}`}
           </button>
-          {mine && <p className="coupon-note">Your best today: {mine.playerMoves} moves, on try {mine.tries}.</p>}
+          {!name.trim() && <p className="coupon-note">Add a name to go in today's standings.</p>}
+          {mine && (
+            <p className="coupon-note">
+              Your best today: {mine.playerMoves} moves, on try {mine.tries}.{' '}
+              <Link to={playerPath(mine.name)}>All your results</Link>
+            </p>
+          )}
           {current && (
             <p className="coupon-note">
               You have a try in progress. <Link to={`/game/${current.id}`}>Go back to it</Link>.

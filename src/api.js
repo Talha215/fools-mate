@@ -37,4 +37,6 @@ export const api = {
     request(`/api/leaderboard?${qs({ color, unique: unique ? 1 : '', limit, daily })}`),
   games: (params) => request(`/api/games?${qs(params)}`),
   stats: () => request('/api/stats'),
+  player: (name) => request(`/api/player?${qs({ name })}`),
+  players: (q) => request(`/api/players?${qs({ q })}`),
 };

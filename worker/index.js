@@ -38,6 +38,8 @@ async function route(request, env, ctx, url) {
   if (pathname === '/api/health') return json({ ok: true });
   if (pathname === '/api/stats' && method === 'GET') return json(await stats(env));
   if (pathname === '/api/daily' && method === 'GET') return json({ daily: dailyFor(url.searchParams.get('date')) });
+  if (pathname === '/api/player' && method === 'GET') return json(await player(env, url));
+  if (pathname === '/api/players' && method === 'GET') return json(await searchPlayers(env, url));
   if (pathname === '/api/leaderboard' && method === 'GET') return json(await leaderboard(env, url));
   if (pathname === '/api/games' && method === 'GET') return json(await listGames(env, url));
   if (pathname === '/api/games' && method === 'POST') return json(await createGame(request, env, ctx), 201);
@@ -180,10 +182,48 @@ async function dailyBoard(env, date, limit) {
                  WHERE t.mode = 'daily' AND t.daily_date = b.daily_date
                    AND lower(t.name) = lower(b.name) AND t.created_at <= b.created_at) AS tries
     FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY lower(name) ORDER BY player_moves, created_at) AS rn
-          FROM games WHERE mode = 'daily' AND daily_date = ? AND result = 'mated') b
+          FROM games WHERE mode = 'daily' AND daily_date = ? AND result = 'mated'
+            AND lower(name) != 'anonymous') b
     WHERE b.rn = 1
     ORDER BY b.player_moves, tries, b.duration_ms
     LIMIT ?`, [date, limit]);
+}
+
+// Everything one name has played: per-day daily bests (with tries), classic
+// best, endless tally, recent results. Names aren't accounts, so this is
+// "everyone who typed this name".
+async function player(env, url) {
+  const name = cleanName(url.searchParams.get('name'));
+  const [dailies, totals, recent] = await env.DB.batch([
+    env.DB.prepare(`
+      SELECT daily_date, COUNT(*) AS tries, MIN(CASE WHEN result = 'mated' THEN player_moves END) AS best
+      FROM games WHERE lower(name) = lower(?) AND mode = 'daily'
+      GROUP BY daily_date ORDER BY daily_date DESC LIMIT 60`).bind(name),
+    env.DB.prepare(`
+      SELECT mode, COUNT(*) AS games, SUM(result = 'mated') AS mated, MIN(CASE WHEN result = 'mated' THEN player_moves END) AS best
+      FROM games WHERE lower(name) = lower(?) GROUP BY mode`).bind(name),
+    env.DB.prepare(`
+      SELECT * FROM games WHERE lower(name) = lower(?) AND status = 'finished' AND result != 'resigned'
+      ORDER BY created_at DESC LIMIT 30`).bind(name),
+  ]);
+  return {
+    name,
+    dailies: dailies.results.map((r) => ({ date: r.daily_date, number: dailyNumber(r.daily_date), tries: r.tries, best: r.best })),
+    modes: Object.fromEntries(totals.results.map((r) => [r.mode, { games: r.games, mated: r.mated, best: r.best }])),
+    recent: recent.results.map(summary),
+  };
+}
+
+// Names starting with what's been typed, for the search box.
+async function searchPlayers(env, url) {
+  const q = cleanName(url.searchParams.get('q')).toLowerCase();
+  if (!url.searchParams.get('q') || q === 'anonymous') return { names: [] };
+  // A prefix range rather than LIKE, so the lower(name) index is used.
+  const rows = await all(env, `
+    SELECT name, COUNT(*) AS games FROM games
+    WHERE lower(name) >= ? AND lower(name) < ? AND lower(name) != 'anonymous'
+    GROUP BY lower(name) ORDER BY games DESC LIMIT 8`, [q, q + String.fromCharCode(0xffff)]);
+  return { names: rows.map((r) => ({ name: r.name, games: r.games })) };
 }
 
 async function leaderboard(env, url) {

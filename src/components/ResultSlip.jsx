@@ -12,6 +12,44 @@ import { toast } from '../lib/toast.jsx';
 const STAMPS = { mated: 'Checkmated', won: 'Void', draw: 'Drawn', resigned: 'Resigned' };
 const plural = (n, s) => `${word(n)} ${s}${n === 1 ? '' : 's'}`;
 
+// The text a player pastes to friends. Plain, like the rest of the site; the
+// Daily links to the front page (everyone gets the same position), other
+// games to their replay.
+function shareText(game, link) {
+  const n = game.playerMoves;
+  const moves = `${n} move${n === 1 ? '' : 's'}`;
+  if (game.mode === 'daily') {
+    const head = `Fool's Mate, Daily No. ${game.dailyNumber}.`;
+    const body =
+      game.result === 'mated'
+        ? `Checkmated in ${moves}, on try ${game.tries}.`
+        : `Not checkmated yet, after ${game.tries} tr${game.tries === 1 ? 'y' : 'ies'}.`;
+    return `${head} ${body}
+${location.origin}`;
+  }
+  return `Fool's Mate${game.mode === 'endless' ? ', Endless' : ''}. Checkmated by ${BOT.name} in ${moves}.
+${link}`;
+}
+
+// Phones get the system share sheet (text only); everywhere else, copy.
+async function shareResult(game, link) {
+  const text = shareText(game, link);
+  if (navigator.share && window.matchMedia?.('(pointer: coarse)').matches) {
+    try {
+      await navigator.share({ text });
+      return;
+    } catch (e) {
+      if (e?.name === 'AbortError') return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('Copied. Paste it anywhere.');
+  } catch {
+    toast(text);
+  }
+}
+
 // The result, typed on a slip and rubber-stamped.
 export default function ResultSlip({ open, game, token, finalOdds, closeCalls, onClose, onGame, onPlayAgain, busy }) {
   const [name, setName] = useState(game.name === 'Anonymous' ? '' : game.name);
@@ -88,6 +126,7 @@ export default function ResultSlip({ open, game, token, finalOdds, closeCalls, o
         {lines.map((l) => <p key={l}>{l}</p>)}
         {success && game.mode === 'classic' && game.rank && <p>{ordinal(game.rank)} in the classic standings.</p>}
         {success && daily && best?.isThis && <p>{ordinal(game.rank)} on today's board.</p>}
+        {success && daily && !best && game.name === 'Anonymous' && <p>Add a name below to go in today's standings.</p>}
         {success && daily && best && !best.isThis && (
           <p>
             Your best today is still {plural(best.playerMoves, 'move')} (try {best.tries}), {ordinal(game.rank)} on today's board.
@@ -108,14 +147,21 @@ export default function ResultSlip({ open, game, token, finalOdds, closeCalls, o
 
       <div className="slip-actions">
         <button type="button" className="btn btn-ink" onClick={onPlayAgain} disabled={busy}>{daily ? 'Try again' : game.mode === 'endless' ? 'Next position' : 'Play again'}</button>
+        {(daily || success) && (
+          <button type="button" className="btn" onClick={() => shareResult(game, link)}>
+            Share result
+          </button>
+        )}
         <Link className="btn" to={`/replay/${game.id}`}>Replay</Link>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => navigator.clipboard?.writeText(link).then(() => toast('Link copied.'), () => toast(link))}
-        >
-          Copy link
-        </button>
+        {!(daily || success) && (
+          <button
+            type="button"
+            className="btn"
+            onClick={() => navigator.clipboard?.writeText(link).then(() => toast('Link copied.'), () => toast(link))}
+          >
+            Copy link
+          </button>
+        )}
       </div>
     </Modal>
   );
