@@ -46,10 +46,16 @@ export default function ResultSlip({ open, game, token, finalOdds, closeCalls, o
     }
   }
 
+  const daily = game.mode === 'daily';
+  const best = game.bestToday;
   const lines = [];
   if (success) {
-    lines.push(`Checkmated in ${plural(game.playerMoves, 'move')}.`);
-    if (game.playerMoves === 2) lines.push('That is the shortest game possible.');
+    lines.push(
+      daily
+        ? `Checkmated in ${plural(game.playerMoves, 'move')}, on your ${ordinal(game.tries)} try today.`
+        : `Checkmated in ${plural(game.playerMoves, 'move')}.`,
+    );
+    if (game.playerMoves === 2 && !daily) lines.push('That is the shortest game possible.');
     if (finalOdds) {
       const n = finalOdds.pool.length;
       const what = finalOdds.kind === 'check' ? 'check' : 'move';
@@ -65,19 +71,26 @@ export default function ResultSlip({ open, game, token, finalOdds, closeCalls, o
     if (game.result === 'draw') lines.push(`Drawn ${REASONS[game.reason] || ''}. It doesn't count.`);
     if (game.result === 'resigned') lines.push('You resigned.');
     if (closeCalls) lines.push(`${BOT.name} missed ${plural(closeCalls, 'mate')} along the way.`);
+    if (daily) lines.push(`That was your ${ordinal(game.tries)} try today. Try as often as you like.`);
   }
 
   const link = `${location.origin}/replay/${game.id}`;
   return (
     <Modal open={open} onClose={onClose} className="slip">
-      <div className="slip-label">Result</div>
+      <div className="slip-label">{daily ? `Result · Daily No. ${game.dailyNumber}` : 'Result'}</div>
       <div className="slip-score">
         <span>{white} v {black}</span>
         <b>{scoreline(game)}</b>
       </div>
       <div className="slip-body">
         {lines.map((l) => <p key={l}>{l}</p>)}
-        {success && game.rank && <p>{ordinal(game.rank)} in the standings.</p>}
+        {success && !daily && game.rank && <p>{ordinal(game.rank)} in the standings.</p>}
+        {success && daily && best?.isThis && <p>{ordinal(game.rank)} on today's board.</p>}
+        {success && daily && best && !best.isThis && (
+          <p>
+            Your best today is still {plural(best.playerMoves, 'move')} (try {best.tries}), {ordinal(game.rank)} on today's board.
+          </p>
+        )}
       </div>
       <div className={`stamp ${success ? 'red' : ''}`} aria-hidden="true">{STAMPS[game.result]}</div>
 
@@ -92,7 +105,7 @@ export default function ResultSlip({ open, game, token, finalOdds, closeCalls, o
       )}
 
       <div className="slip-actions">
-        <button type="button" className="btn btn-ink" onClick={onPlayAgain} disabled={busy}>Play again</button>
+        <button type="button" className="btn btn-ink" onClick={onPlayAgain} disabled={busy}>{daily ? 'Try again' : 'Play again'}</button>
         <Link className="btn" to={`/replay/${game.id}`}>Replay</Link>
         <button
           type="button"

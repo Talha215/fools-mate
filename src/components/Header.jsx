@@ -6,6 +6,7 @@ import { FallenKing } from './Drawings.jsx';
 
 const NAV = [
   { to: '/', label: 'Play', match: (p) => p === '/' || p.startsWith('/game/') },
+  { to: '/daily', label: 'Daily', match: (p) => p.startsWith('/daily') },
   { to: '/standings', label: 'Standings', match: (p) => p.startsWith('/standings') },
   { to: '/archive', label: 'Archive', match: (p) => p.startsWith('/archive') || p.startsWith('/replay/') },
 ];
@@ -43,7 +44,7 @@ export default function Header() {
           ))}
         </nav>
         <div className="tools" ref={pop}>
-          <button type="button" className="text-btn" onClick={() => updateSettings({ sound: !settings.sound })}>
+          <button type="button" className="text-btn sound-btn" onClick={() => updateSettings({ sound: !settings.sound })}>
             sound {settings.sound ? 'on' : 'off'}
           </button>
           <button type="button" className={`text-btn${open ? ' on' : ''}`} onClick={() => setOpen((o) => !o)} aria-expanded={open}>

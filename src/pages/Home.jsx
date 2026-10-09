@@ -147,6 +147,9 @@ export default function Home() {
           <button type="submit" className="btn btn-ink btn-big" disabled={busy}>
             {busy ? 'Setting up…' : `Play ${BOT.name}`}
           </button>
+          <p className="coupon-note daily-teaser">
+            Or play <Link to="/daily">the Daily</Link>: one position for everyone today, as many tries as you like.
+          </p>
           {current && (
             <p className="coupon-note">
               You have a game going, {current.playerMoves} {current.playerMoves === 1 ? 'move' : 'moves'} in.{' '}

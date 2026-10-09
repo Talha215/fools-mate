@@ -9,6 +9,9 @@ mates about one game in ten). The theoretical best is 2 (Fool's Mate: 1. f3 e5 2
 
 - Getting checkmated: success, goes in the standings, scored by your move count (ties: faster game).
 - Checkmating the bot, stalemate, threefold repetition, 50-move rule, insufficient material: fail.
+- **The Daily** (`/daily`): each UTC day's date seeds a game where Gary plays both sides at random for
+  6-12 moves; everyone takes over from that position. Unlimited tries; the day's standings show each
+  name's best and which try it came on (ranked by moves, then tries, then time). See `shared/daily.js`.
 - Every game is saved and replayable at `/replay/<id>`, including games still in progress (spectating).
 
 ## Run it locally

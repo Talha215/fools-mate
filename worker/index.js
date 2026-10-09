@@ -1,7 +1,8 @@
 // Cloudflare Worker: the JSON API under /api. Everything else is the static
 // React app (see "assets" in wrangler.jsonc).
-import { newGame, playerMove, playerMoveCount, resign } from './game.js';
+import { newDailyGame, newGame, playerMove, playerMoveCount, resign } from './game.js';
 import { cryptoRng } from './bot.js';
+import { dailyNumber, dailyPosition, isDate, todayUTC } from '../shared/daily.js';
 
 const LIVE_WINDOW_MS = 2 * 60 * 1000; // "playing now" = moved in the last 2 minutes
 const STALE_ACTIVE_MS = 7 * 24 * 60 * 60 * 1000; // abandoned games are pruned after a week
@@ -36,6 +37,7 @@ async function route(request, env, ctx, url) {
 
   if (pathname === '/api/health') return json({ ok: true });
   if (pathname === '/api/stats' && method === 'GET') return json(await stats(env));
+  if (pathname === '/api/daily' && method === 'GET') return json({ daily: dailyFor(url.searchParams.get('date')) });
   if (pathname === '/api/leaderboard' && method === 'GET') return json(await leaderboard(env, url));
   if (pathname === '/api/games' && method === 'GET') return json(await listGames(env, url));
   if (pathname === '/api/games' && method === 'POST') return json(await createGame(request, env, ctx), 201);
@@ -58,18 +60,24 @@ async function route(request, env, ctx, url) {
 
 async function createGame(request, env, ctx) {
   const body = await readBody(request);
-  const color = body.color === 'b' || body.color === 'w' ? body.color : cryptoRng(2) ? 'b' : 'w';
-  const state = newGame(color, cryptoRng);
+  const daily = body.mode === 'daily';
+  // The daily is always today's (UTC): nobody can start yesterday's for the
+  // standings.
+  const day = daily ? dailyPosition(todayUTC()) : null;
+  const color = daily ? day.playerColor : body.color === 'b' || body.color === 'w' ? body.color : cryptoRng(2) ? 'b' : 'w';
+  const state = daily ? newDailyGame(day) : newGame(color, cryptoRng);
   const id = randomId(10);
   const token = randomToken();
   const now = Date.now();
 
   await env.DB.prepare(
-    `INSERT INTO games (id, token_hash, name, player_color, moves, ply, fen, rep_keys, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO games (id, token_hash, name, player_color, moves, ply, fen, rep_keys, created_at, updated_at,
+       mode, daily_date, start_ply)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(id, await sha256(token), cleanName(body.name), color, state.moves.join(' '), state.moves.length,
-      state.fen, JSON.stringify(state.keys), now, now)
+      state.fen, JSON.stringify(state.keys), now, now, daily ? 'daily' : 'classic', daily ? day.date : null,
+      state.startPly || 0)
     .run();
   await bump(env, { games: 1 });
 
@@ -139,17 +147,46 @@ async function listGames(env, url) {
   return { games: rows.map(summary) };
 }
 
+// Today's daily position (or another date's, for showing past dailies).
+function dailyFor(date) {
+  const d = isDate(date) ? date : todayUTC();
+  if (dailyNumber(d) < 1 || d > todayUTC()) throw new HttpError(404, 'There is no daily for that date.');
+  return dailyPosition(d);
+}
+
+// One line per name for a day's daily: their best score, and "tries", how
+// many daily games that name had started that day up to and including it.
+// Ranked by moves, then fewer tries, then the faster game.
+async function dailyBoard(env, date, limit) {
+  return all(env, `
+    SELECT b.*, (SELECT COUNT(*) FROM games t
+                 WHERE t.mode = 'daily' AND t.daily_date = b.daily_date
+                   AND lower(t.name) = lower(b.name) AND t.created_at <= b.created_at) AS tries
+    FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY lower(name) ORDER BY player_moves, created_at) AS rn
+          FROM games WHERE mode = 'daily' AND daily_date = ? AND result = 'mated') b
+    WHERE b.rn = 1
+    ORDER BY b.player_moves, tries, b.duration_ms
+    LIMIT ?`, [date, limit]);
+}
+
 async function leaderboard(env, url) {
   const limit = clampInt(url.searchParams.get('limit'), 1, 100, 50);
+  const dailyParam = url.searchParams.get('daily');
+  if (dailyParam) {
+    const date = dailyParam === 'today' ? todayUTC() : dailyParam;
+    if (!isDate(date)) throw new HttpError(400, 'Bad date.');
+    const rows = await dailyBoard(env, date, limit);
+    return { date, number: dailyNumber(date), entries: rows.map((r) => ({ ...summary(r), tries: r.tries })) };
+  }
   const color = url.searchParams.get('color');
   const colorSql = color === 'w' || color === 'b' ? `AND player_color = '${color}'` : '';
   const order = 'player_moves ASC, duration_ms ASC, ended_at ASC';
   const sql = url.searchParams.get('unique') === '1'
     ? `SELECT * FROM (
          SELECT *, ROW_NUMBER() OVER (PARTITION BY lower(name) ORDER BY ${order}) AS rn
-         FROM games WHERE result = 'mated' ${colorSql}
+         FROM games WHERE result = 'mated' AND mode = 'classic' ${colorSql}
        ) WHERE rn = 1 ORDER BY ${order} LIMIT ?`
-    : `SELECT * FROM games WHERE result = 'mated' ${colorSql} ORDER BY ${order} LIMIT ?`;
+    : `SELECT * FROM games WHERE result = 'mated' AND mode = 'classic' ${colorSql} ORDER BY ${order} LIMIT ?`;
   const rows = await all(env, sql, [limit]);
   return { entries: rows.map(summary) };
 }
@@ -157,7 +194,7 @@ async function leaderboard(env, url) {
 async function stats(env) {
   const [counters, best, live] = await env.DB.batch([
     env.DB.prepare(`SELECT key, value FROM counters`),
-    env.DB.prepare(`SELECT MIN(player_moves) AS best FROM games WHERE result = 'mated'`),
+    env.DB.prepare(`SELECT MIN(player_moves) AS best FROM games WHERE result = 'mated' AND mode = 'classic'`),
     env.DB.prepare(`SELECT COUNT(*) AS n FROM games WHERE status = 'active' AND updated_at > ?`).bind(Date.now() - LIVE_WINDOW_MS),
   ]);
   const c = Object.fromEntries(counters.results.map((r) => [r.key, r.value]));
@@ -178,6 +215,7 @@ function stateOf(row) {
     fen: row.fen,
     moves: row.moves ? row.moves.split(' ') : [],
     keys: JSON.parse(row.rep_keys),
+    startPly: row.start_ply || 0,
     result: row.result,
     reason: row.reason,
   };
@@ -246,15 +284,35 @@ function summary(row) {
     updatedAt: row.updated_at,
     endedAt: row.ended_at,
     durationMs: row.duration_ms,
+    mode: row.mode || 'classic',
+    dailyDate: row.daily_date ?? null,
+    dailyNumber: row.daily_date ? dailyNumber(row.daily_date) : null,
+    startPly: row.start_ply || 0,
   };
 }
 
 async function publicGame(env, row) {
   const game = { ...summary(row), moves: row.moves ? row.moves.split(' ') : [], fen: row.fen };
+  if (row.mode === 'daily') {
+    const t = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM games WHERE mode = 'daily' AND daily_date = ? AND lower(name) = lower(?) AND created_at <= ?`,
+    ).bind(row.daily_date, row.name, row.created_at).first();
+    game.tries = t?.n ?? 1;
+    if (row.result === 'mated') {
+      // Place on the day's board; if this wasn't the name's best run, report
+      // the run that is.
+      const board = await dailyBoard(env, row.daily_date, 1000);
+      const i = board.findIndex((e) => e.id === row.id);
+      const j = i >= 0 ? i : board.findIndex((e) => e.name.toLowerCase() === row.name.toLowerCase());
+      game.rank = j >= 0 ? j + 1 : null;
+      game.bestToday = j >= 0 ? { playerMoves: board[j].player_moves, tries: board[j].tries, isThis: i >= 0 } : null;
+    }
+    return game;
+  }
   if (row.result === 'mated') {
-    // Leaderboard position among all successful runs.
+    // Leaderboard position among all successful classic runs.
     const r = await env.DB.prepare(
-      `SELECT COUNT(*) AS better FROM games WHERE result = 'mated' AND (
+      `SELECT COUNT(*) AS better FROM games WHERE result = 'mated' AND mode = 'classic' AND (
          player_moves < ?1 OR (player_moves = ?1 AND (duration_ms < ?2 OR (duration_ms = ?2 AND ended_at < ?3))))`,
     ).bind(row.player_moves, row.duration_ms, row.ended_at).first();
     game.rank = (r?.better ?? 0) + 1;

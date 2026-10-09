@@ -27,13 +27,14 @@ const qs = (params) => {
 };
 
 export const api = {
-  createGame: (color, name) => request('/api/games', { color, name }),
+  createGame: (color, name, mode) => request('/api/games', { color, name, mode }),
+  daily: (date) => request(`/api/daily?${qs({ date })}`),
   game: (id) => request(`/api/games/${id}`),
   move: (id, token, ply, move) => request(`/api/games/${id}/move`, { token, ply, move }),
   resign: (id, token) => request(`/api/games/${id}/resign`, { token }),
   rename: (id, token, name) => request(`/api/games/${id}/name`, { token, name }),
-  leaderboard: ({ color, unique, limit } = {}) =>
-    request(`/api/leaderboard?${qs({ color, unique: unique ? 1 : '', limit })}`),
+  leaderboard: ({ color, unique, limit, daily } = {}) =>
+    request(`/api/leaderboard?${qs({ color, unique: unique ? 1 : '', limit, daily })}`),
   games: (params) => request(`/api/games?${qs(params)}`),
   stats: () => request('/api/stats'),
 };

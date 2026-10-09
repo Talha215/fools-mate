@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Chess } from 'chess.js';
 import { newGame, playerMove, playerMoveCount, resign } from '../worker/game.js';
-import { replay, outcome } from '../shared/rules.js';
+import { playUci, replay, outcome } from '../shared/rules.js';
 import { garyOptions } from '../shared/gary.js';
 
 // Plays the player's move with Gary forced to reply `botUci` (when the game
@@ -183,4 +183,38 @@ test("Gary's options follow his rules in every position (fuzz)", () => {
 test('a promotion letter on a non-promoting move is rejected', () => {
   const s = newGame('w', () => 0);
   assert.match(playerMove(s, 'e2e4q', () => 0).error, /Illegal/);
+});
+
+test('the daily position is the same all day, different each day, and handed over live', async () => {
+  const { dailyPosition, dailyNumber } = await import('../shared/daily.js');
+  const a = dailyPosition('2026-10-09');
+  assert.deepEqual(dailyPosition('2026-10-09'), a);
+  assert.equal(a.number, 1);
+  assert.equal(dailyNumber('2026-10-10'), 2);
+  const seen = new Set();
+  for (let d = 1; d <= 60; d++) {
+    const date = new Date(Date.UTC(2026, 9, 9 + d)).toISOString().slice(0, 10);
+    const p = dailyPosition(date);
+    assert.ok(p.moves.length >= 12 && p.moves.length <= 24, `${date}: ${p.moves.length} plies`);
+    const c = new Chess();
+    for (const uci of p.moves) assert.ok(playUci(c, uci), `${date}: ${uci}`);
+    assert.equal(c.fen(), p.fen);
+    assert.ok(!c.isGameOver() && !c.inCheck());
+    assert.equal(p.playerColor, c.turn());
+    seen.add(p.fen);
+  }
+  assert.ok(seen.size > 55, 'days should differ');
+});
+
+test('a daily game counts only the player moves after the hand-over', async () => {
+  const { dailyPosition } = await import('../shared/daily.js');
+  const { newDailyGame } = await import('../worker/game.js');
+  const s = newDailyGame(dailyPosition('2026-10-09'));
+  assert.equal(s.startPly, s.moves.length);
+  assert.equal(playerMoveCount(s), 0);
+  const uci = new Chess(s.fen).moves({ verbose: true })[0].lan;
+  const r = playerMove(s, uci, seeded(3));
+  assert.ok(r.state, r.error);
+  assert.equal(playerMoveCount(r.state), 1);
+  assert.equal(r.state.startPly, s.startPly);
 });

@@ -15,14 +15,18 @@ export const moveLabel = (ply, san) => `${Math.floor(ply / 2) + 1}${ply % 2 === 
 // of view: "??" on any move by Gary that skipped an available mate, "!" on
 // the player move that offered it, "??" on a player move that mates Gary.
 // Positions are cached, so a growing game only analyses the newest turn.
-export function useAnnotations(plies, playerColor) {
+// startPly: daily games begin with Gary playing both sides; those moves
+// aren't annotated, and a note marks where the player takes over.
+export function useAnnotations(plies, playerColor, startPly = 0) {
   const cache = useRef(new Map());
   return useMemo(() => {
     const marks = new Map();
     const notes = new Map();
     let closeCalls = 0;
     const botColor = playerColor === 'w' ? 'b' : 'w';
+    if (startPly > 0 && plies.length >= startPly) notes.set(startPly - 1, `${BOT.name} played both sides up to here.`);
     plies.forEach((p, i) => {
+      if (i < startPly) return;
       if (p.color !== botColor) {
         if (p.san.endsWith('#')) {
           marks.set(i, '??');
@@ -54,7 +58,7 @@ export function useAnnotations(plies, playerColor) {
       }
     });
     return { marks, notes, closeCalls };
-  }, [plies, playerColor]);
+  }, [plies, playerColor, startPly]);
 }
 
 // Standard PGN, with the annotations as NAG-style marks and {comments}, so a
@@ -66,7 +70,7 @@ export function toPgn(game, plies, marks, notes) {
   const black = game.playerColor === 'w' ? BOT.name : game.name;
   const result = pgnResult(game);
   const tags = [
-    ['Event', "Fool's Mate"],
+    ['Event', game.mode === 'daily' ? `Fool's Mate Daily No. ${game.dailyNumber}` : "Fool's Mate"],
     ['Site', location.host],
     ['Date', `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`],
     ['White', white],

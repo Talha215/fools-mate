@@ -8,6 +8,11 @@ import { Link } from '../lib/router.jsx';
 const SHORT_REASON = { stalemate: 'stalemate', repetition: 'repetition', fifty: '50 moves', insufficient: 'no material' };
 
 function describe(g) {
+  const d = g.mode === 'daily' ? `daily No. ${g.dailyNumber}, ` : '';
+  return d + describeResult(g);
+}
+
+function describeResult(g) {
   if (g.status === 'active') return `${g.playerMoves} ${g.playerMoves === 1 ? 'move' : 'moves'} in`;
   if (g.result === 'mated') return `mated in ${g.playerMoves}`;
   if (g.result === 'won') return 'void';

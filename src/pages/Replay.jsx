@@ -49,7 +49,7 @@ export default function ReplayPage({ id }) {
   }, [id]);
 
   const plies = useMemo(() => (game ? replay(game.moves).plies : []), [game]);
-  const notes = useAnnotations(plies, game?.playerColor ?? 'w');
+  const notes = useAnnotations(plies, game?.playerColor ?? 'w', game?.startPly || 0);
   const lastIdx = plies.length - 1;
   const shown = view ?? lastIdx;
   const shownFen = shown >= 0 ? plies[shown].fen : START_FEN;
@@ -137,12 +137,13 @@ export default function ReplayPage({ id }) {
       side={
         <div className="sheet">
           <div className="sheet-head">
-            <span>{active ? 'In play' : 'Game record'}</span>
+            <span>{game.mode === 'daily' ? `Daily No. ${game.dailyNumber}` : active ? 'In play' : 'Game record'}</span>
             <span>{game.durationMs != null && formatDuration(game.durationMs)}</span>
           </div>
           <pre className="pgn-tags">{pgn.tags}</pre>
           <MoveList
             plies={plies}
+            startPly={game.startPly || 0}
             current={shown}
             onSelect={(i) => go(i, { quiet: true })}
             marks={notes.marks}

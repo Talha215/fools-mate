@@ -1,5 +1,6 @@
 import Header from './components/Header.jsx';
 import Archive from './pages/Archive.jsx';
+import Daily from './pages/Daily.jsx';
 import GamePage from './pages/Game.jsx';
 import Home from './pages/Home.jsx';
 import ReplayPage from './pages/Replay.jsx';
@@ -17,6 +18,7 @@ export default function App() {
   // /leaderboard and /games were the original names; old links still work.
   else if (path === '/standings' || path === '/leaderboard') page = <Standings />;
   else if (path === '/archive' || path === '/games') page = <Archive />;
+  else if (path === '/daily') page = <Daily />;
   else if (path === '/') page = <Home />;
   else {
     page = (

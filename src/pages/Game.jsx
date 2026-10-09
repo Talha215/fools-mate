@@ -65,10 +65,18 @@ function GameView({ initial, token }) {
   const [slipOpen, setSlipOpen] = useState(false);
   const [confirmResign, setConfirmResign] = useState(false);
   const [busy, setBusy] = useState(false);
-  // A fresh game as Black: show the empty board first, then Gary's opening move.
-  const [intro, setIntro] = useState(
-    () => initial.playerColor === 'b' && initial.ply === 1 && Date.now() - initial.createdAt < 15000,
-  );
+  // Intro for a fresh game: how many of the server's moves are on show yet
+  // (null = all). As Black, the empty board first, then Gary's opening move.
+  // In the daily, the board fast-forwards through Gary v Gary to the day's
+  // position before you get the controls.
+  const startPly = initial.startPly || 0;
+  const [reveal, setReveal] = useState(() => {
+    const fresh = Date.now() - initial.createdAt < 60000;
+    if (fresh && startPly > 0 && initial.ply === startPly) return 0;
+    if (fresh && initial.playerColor === 'b' && initial.ply === 1) return 0;
+    return null;
+  });
+  const intro = reveal !== null;
   const boardRef = useRef(null);
   const alive = useRef(true);
   useEffect(() => () => void (alive.current = false), []);
@@ -76,7 +84,10 @@ function GameView({ initial, token }) {
   const playerColor = game.playerColor;
   const active = game.status === 'active';
 
-  const moves = useMemo(() => (intro ? [] : pending ? [...game.moves, pending] : game.moves), [intro, pending, game.moves]);
+  const moves = useMemo(
+    () => (reveal !== null ? game.moves.slice(0, reveal) : pending ? [...game.moves, pending] : game.moves),
+    [reveal, pending, game.moves],
+  );
   const plies = useMemo(() => replay(moves).plies, [moves]);
   const lastIdx = plies.length - 1;
   const liveFen = lastIdx >= 0 ? plies[lastIdx].fen : START_FEN;
@@ -89,18 +100,25 @@ function GameView({ initial, token }) {
   const lastMove = useMemo(() => (shownPly ? [shownPly.from, shownPly.to] : undefined), [shownPly]);
   const check = useMemo(() => checkColor(shownFen), [shownFen]);
   const mat = useMemo(() => material(shownFen), [shownFen]);
-  const notes = useAnnotations(plies, playerColor);
-  const playerMoves = plies.filter((p) => p.color === playerColor).length;
+  const notes = useAnnotations(plies, playerColor, intro ? 0 : startPly);
+  const playerMoves = plies.filter((p, i) => i >= startPly && p.color === playerColor).length;
   const latestNote = [...notes.notes.entries()].pop();
 
   useEffect(() => {
-    if (!intro) return;
+    if (reveal === null) return;
+    const target = game.moves.length;
+    if (reveal >= target) {
+      const t = setTimeout(() => setReveal(null), startPly ? 350 : 0);
+      return () => clearTimeout(t);
+    }
+    // Daily: about two seconds of fast-forward whatever the length.
+    const step = startPly ? Math.max(90, Math.min(170, 2200 / startPly)) : 650;
     const t = setTimeout(() => {
-      setIntro(false);
+      setReveal(reveal + 1);
       playSound('move');
-    }, 650);
+    }, reveal === 0 && startPly ? 500 : step);
     return () => clearTimeout(t);
-  }, [intro]);
+  }, [reveal, game.moves.length, startPly]);
 
   // A premove queued while Gary was "thinking" fires as soon as it's our
   // turn. Board's own effect (a child, so it runs first) has already handed
@@ -187,7 +205,7 @@ function GameView({ initial, token }) {
     setBusy(true);
     try {
       const color = settings.color === 'w' || settings.color === 'b' ? settings.color : undefined;
-      const { game: g, token: t } = await api.createGame(color, settings.name);
+      const { game: g, token: t } = await api.createGame(color, settings.name, game.mode === 'daily' ? 'daily' : undefined);
       rememberGame(g.id, t);
       navigate(`/game/${g.id}`);
     } catch (e) {
@@ -221,7 +239,9 @@ function GameView({ initial, token }) {
         tag={BOT.rating}
         material={mat}
         active={active && sideToMove === side}
-        status={(pending || intro) && active ? <span className="typing">thinking</span> : null}
+        status={
+          intro && startPly ? <span className="typing">playing itself</span> : (pending || intro) && active ? <span className="typing">thinking</span> : null
+        }
       />
     );
   const topSide = orientation === 'white' ? 'b' : 'w';
@@ -269,13 +289,14 @@ function GameView({ initial, token }) {
         side={
           <div className="sheet">
             <div className="sheet-head">
-              <span>Scoresheet</span>
+              <span>{game.mode === 'daily' ? `Daily No. ${game.dailyNumber}` : 'Scoresheet'}</span>
               <span>{playerColor === 'w' ? `${game.name} v ${BOT.name}` : `${BOT.name} v ${game.name}`}</span>
             </div>
             {settings.odds && (active || tally) && <Tally data={tally} />}
             {latestNote && <p className="latest-note">{latestNote[1]}</p>}
             <MoveList
               plies={plies}
+              startPly={startPly}
               current={shown}
               onSelect={go}
               marks={notes.marks}
@@ -297,9 +318,11 @@ function GameView({ initial, token }) {
                 )
               ) : (
                 <>
-                  <button type="button" className="btn btn-ink" onClick={playAgain} disabled={busy}>Play again</button>
+                  <button type="button" className="btn btn-ink" onClick={playAgain} disabled={busy}>
+                    {game.mode === 'daily' ? 'Try again' : 'Play again'}
+                  </button>
                   <Link className="btn" to={`/replay/${game.id}`}>Replay</Link>
-                  {game.result === 'mated' && <Link className="btn" to="/standings">Standings</Link>}
+                  {game.result === 'mated' && <Link className="btn" to={game.mode === 'daily' ? '/daily' : '/standings'}>Standings</Link>}
                 </>
               )}
             </div>

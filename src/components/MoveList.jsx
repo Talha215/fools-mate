@@ -3,7 +3,8 @@ import { useEffect, useRef } from 'react';
 // Scoresheet: number | white | black, with annotation marks ("!", "??")
 // after moves and notes printed under the row they belong to. A flat list of
 // cells, so CSS can make it a grid on desktop and a scrolling strip on phones.
-export default function MoveList({ plies, current, onSelect, marks, notes, footer, empty }) {
+// startPly: moves before it (Gary v Gary in the daily) are printed muted.
+export default function MoveList({ plies, current, onSelect, marks, notes, footer, empty, startPly = 0 }) {
   const box = useRef(null);
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export default function MoveList({ plies, current, onSelect, marks, notes, foote
       }
       const mark = marks?.get(j);
       cells.push(
-        <button key={j} type="button" className={`mv${current === j ? ' active' : ''}`} onClick={() => onSelect(j)}>
+        <button key={j} type="button" className={`mv${j < startPly ? ' pre' : ''}${current === j ? ' active' : ''}`} onClick={() => onSelect(j)}>
           {plies[j].san}
           {mark && <span className={`mark${mark === '??' ? ' bad' : ''}`}>{mark}</span>}
         </button>,

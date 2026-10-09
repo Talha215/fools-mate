@@ -28,6 +28,23 @@ export function newGame(playerColor, rng, choose = chooseMove) {
   return playerColor === 'b' ? botReply(state, chess, rng, choose) : state;
 }
 
+// A daily game: Gary's moves for both sides up to the day's position, then the
+// player takes over as the side to move. `daily` comes from shared/daily.js.
+// startPly marks the hand-over, so only moves after it count for the player.
+export function newDailyGame(daily) {
+  const chess = new Chess();
+  for (const uci of daily.moves) if (!playUci(chess, uci)) throw new Error(`Bad daily move ${uci}`);
+  return {
+    playerColor: daily.playerColor,
+    fen: chess.fen(),
+    moves: [...daily.moves],
+    keys: [positionKey(chess.fen())],
+    startPly: daily.moves.length,
+    result: null,
+    reason: null,
+  };
+}
+
 // Applies the player's move and, unless that ended the game, Gary's reply.
 // Returns { state } or { error } (state is never mutated).
 export function playerMove(state, uci, rng, choose = chooseMove) {
@@ -43,9 +60,12 @@ export function resign(state) {
   return { ...state, result: 'resigned', reason: 'resign' };
 }
 
+// Every game starts from the standard position, so White's moves are the
+// even plies. Daily games skip Gary's warm-up moves before startPly.
 export function playerMoveCount(state) {
   const parity = state.playerColor === 'w' ? 0 : 1;
-  return state.moves.filter((_, i) => i % 2 === parity).length;
+  const start = state.startPly || 0;
+  return state.moves.filter((_, i) => i >= start && i % 2 === parity).length;
 }
 
 function botReply(state, chess, rng, choose) {

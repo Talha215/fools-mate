@@ -99,6 +99,7 @@ input:focus { border-bottom-width: 2.5px; padding-bottom: 3px; }
 
 .text-btn {
   padding: 4px 0;
+  white-space: nowrap;
   border: 0;
   background: none;
   color: var(--ink-2);
@@ -528,6 +529,21 @@ input:focus { border-bottom-width: 2.5px; padding-bottom: 3px; }
 .res-row.mated .res-note { color: var(--red); }
 .res-when { grid-area: when; color: var(--ink-3); font-size: 13px; text-align: right; }
 
+.mv.pre { color: var(--ink-3); font-weight: 400; }
+.mv.pre.active { color: var(--paper); }
+.st-tries { flex: none; width: 4.5em; color: var(--ink-2); text-align: right; }
+.daily-teaser { padding-top: 12px; border-top: 1px solid var(--hair); }
+
+/* ------------------------------------------------------------- the daily */
+
+.daily-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+.daily-diagram .diagram { --board: 100%; max-width: 460px; }
+.daily-side { display: grid; gap: 22px; }
+.daily-coupon { grid-area: auto; margin: 0; }
+.daily-head { margin-top: 32px; }
+.day-nav { display: flex; align-items: center; gap: 14px; font-size: 14.5px; }
+.day-nav .text-btn:disabled { opacity: 0.35; cursor: default; text-decoration: none; }
+
 /* ------------------------------------------------------------- inner pages */
 
 .page { max-width: 1000px; margin: 0 auto; padding: 26px 24px 48px; }
@@ -566,6 +582,7 @@ input:focus { border-bottom-width: 2.5px; padding-bottom: 3px; }
 /* ------------------------------------------------------------- narrow screens */
 
 @media (max-width: 900px) {
+  .daily-grid { grid-template-columns: minmax(0, 1fr); }
   .front-top { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'head' 'form' 'body'; grid-template-rows: auto; }
   .lead-head, .lead-body { padding-right: 0; border-right: 0; }
   .coupon { margin: 4px 0 24px; }
@@ -607,6 +624,8 @@ input:focus { border-bottom-width: 2.5px; padding-bottom: 3px; }
   .nav { gap: 14px; }
   .nav a { font-size: 14px; }
   .tools { gap: 10px; }
+  /* Sound is also in the board menu; the header needs the room for the nav. */
+  .tools .sound-btn { display: none; }
   .text-btn { font-size: 13px; }
   .front, .page { padding-left: 16px; padding-right: 16px; }
   .hide-sm, .st-time, .st-date { display: none; }
