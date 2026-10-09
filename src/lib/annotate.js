@@ -70,7 +70,7 @@ export function toPgn(game, plies, marks, notes) {
   const black = game.playerColor === 'w' ? BOT.name : game.name;
   const result = pgnResult(game);
   const tags = [
-    ['Event', game.mode === 'daily' ? `Fool's Mate Daily No. ${game.dailyNumber}` : "Fool's Mate"],
+    ['Event', game.mode === 'daily' ? `Fool's Mate Daily No. ${game.dailyNumber}` : game.mode === 'endless' ? "Fool's Mate Endless" : "Fool's Mate"],
     ['Site', location.host],
     ['Date', `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`],
     ['White', white],

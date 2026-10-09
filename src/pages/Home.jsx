@@ -1,59 +1,73 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { BOT } from '../../shared/bot.js';
-import { replay, START_FEN } from '../../shared/rules.js';
+import { replay } from '../../shared/rules.js';
 import Board from '../components/Board.jsx';
-import { Gary, PenCircle } from '../components/Drawings.jsx';
 import { ResultRow } from './Archive.jsx';
-import { StandingsRow } from './Standings.jsx';
+import { DailyRow } from './Standings.jsx';
 import { word } from '../lib/annotate.js';
-import { checkColor, durationWords } from '../lib/chess.js';
-import { myGameIds, rememberGame, tokenFor } from '../lib/myGames.js';
+import { checkColor } from '../lib/chess.js';
+import { myGameIds, rememberGame } from '../lib/myGames.js';
 import { Link, navigate } from '../lib/router.jsx';
-import { playSound } from '../lib/sound.js';
 import { updateSettings, useSettings } from '../lib/settings.js';
 import { toast } from '../lib/toast.jsx';
-
-const SIDES = [
-  { key: 'w', label: 'White' },
-  { key: 'b', label: 'Black' },
-  { key: 'random', label: 'Either' },
-];
 
 const titleWord = (n) => {
   const w = word(n);
   return w[0].toUpperCase() + w.slice(1);
 };
 
+// "4 hours 12 minutes" until the next UTC midnight, when the Daily changes.
+function untilTomorrow(now) {
+  const next = new Date(now);
+  next.setUTCHours(24, 0, 0, 0);
+  const mins = Math.max(1, Math.ceil((next - now) / 60000));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return [h && `${h} hour${h === 1 ? '' : 's'}`, m && `${m} minute${m === 1 ? '' : 's'}`].filter(Boolean).join(' ');
+}
+
+// The front page is the Daily: one Gary v Gary position for everyone today.
 export default function Home() {
   const settings = useSettings();
-  const [side, setSide] = useState(settings.color || 'w');
+  const [daily, setDaily] = useState(null);
+  const [board, setBoard] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [recent, setRecent] = useState(null);
+  const [error, setError] = useState(null);
   const [name, setName] = useState(settings.name || '');
   const [busy, setBusy] = useState(false);
-  const [stats, setStats] = useState(null);
-  const [top, setTop] = useState(null);
-  const [recent, setRecent] = useState(null);
-  const [current, setCurrent] = useState(null); // this device's unfinished game
+  const [current, setCurrent] = useState(null); // an unfinished daily try on this device
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
+    api.daily().then((d) => setDaily(d.daily), (e) => setError(e.message));
+    api.leaderboard({ daily: 'today', limit: 10 }).then((d) => setBoard(d.entries), () => setBoard([]));
     api.stats().then(setStats, () => {});
-    api.leaderboard({ limit: 8, unique: true }).then((d) => setTop(d.entries), () => setTop([]));
     api.games({ scope: 'recent', limit: 8 }).then((d) => setRecent(d.games), () => setRecent([]));
-    const ids = myGameIds().slice(0, 10);
+    const ids = myGameIds().slice(0, 20);
     if (ids.length) {
-      api.games({ ids: ids.join(',') }).then((d) => setCurrent(d.games.find((g) => g.status === 'active') || null), () => {});
+      api.games({ ids: ids.join(',') }).then(
+        (d) => setCurrent(d.games.find((g) => g.status === 'active' && g.mode === 'daily') || null),
+        () => {},
+      );
     }
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
   }, []);
+
+  // The day's position with Gary's last move highlighted, as on a diagram.
+  const plies = useMemo(() => (daily ? replay(daily.moves).plies : []), [daily]);
+  const last = plies[plies.length - 1];
+  const lastMove = useMemo(() => (last ? [last.from, last.to] : undefined), [last]);
 
   async function play(e) {
     e.preventDefault();
     setBusy(true);
     const clean = name.trim();
-    updateSettings({ name: clean, color: side });
+    updateSettings({ name: clean });
     try {
-      // One game at a time: starting a new one resigns the unfinished one.
-      if (current) await api.resign(current.id, tokenFor(current.id)).catch(() => {});
-      const { game, token } = await api.createGame(side === 'random' ? undefined : side, clean);
+      const { game, token } = await api.createGame(undefined, clean, 'daily');
       rememberGame(game.id, token);
       navigate(`/game/${game.id}`);
     } catch (err) {
@@ -62,98 +76,94 @@ export default function Home() {
     }
   }
 
-  const record = top?.[0];
-  const today = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const today = new Date(now).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const leader = board?.[0];
+  const mine = board?.find((e) => settings.name && e.name.toLowerCase() === settings.name.toLowerCase());
+  const side = daily?.playerColor === 'w' ? 'White' : 'Black';
 
   return (
     <div className="front">
       <header className="masthead">
         <div className="mast-line">
-          <span>Vol. 1, No. {Math.max(1, stats?.games ?? 1).toLocaleString()}</span>
+          <span>Vol. 1, No. {daily?.number ?? ' '}</span>
           <span className="hide-sm">Price: free</span>
           <span>{today}</span>
         </div>
         <h1 className="mast-title">Fool's Mate</h1>
         <div className="mast-line mast-line-bottom">
           <span>{stats?.live ? `${stats.live} playing now` : ' '}</span>
-          <span>{stats ? `${stats.games.toLocaleString()} games, ${stats.mated.toLocaleString()} checkmated` : ''}</span>
+          <span>Next position in {untilTomorrow(now)}</span>
         </div>
       </header>
 
+      {error && <p className="empty">{error}</p>}
+
       <section className="front-top">
         <div className="lead-head">
-          {top === null ? (
+          {board === null || !daily ? (
             <h2 className="headline">&nbsp;</h2>
-          ) : record ? (
+          ) : leader ? (
             <>
               <h2 className="headline">
-                {record.name === 'Anonymous' ? 'Anonymous Player' : record.name} Mated in {titleWord(record.playerMoves)}
+                {leader.name === 'Anonymous' ? 'Anonymous Player' : leader.name} Mated in {titleWord(leader.playerMoves)}
               </h2>
               <p className="byline">
-                The club record. Played as {record.playerColor === 'w' ? 'White' : 'Black'}, over in{' '}
-                {durationWords(record.durationMs)}. <Link to={`/replay/${record.id}`}>Replay the game</Link>
+                Leads Daily No. {daily.number}, on try {leader.tries}. <Link to={`/replay/${leader.id}`}>Replay the game</Link>
               </p>
             </>
           ) : (
             <>
-              <h2 className="headline">Nobody Has Lost Yet</h2>
-              <p className="byline">The record is open.</p>
+              <h2 className="headline">Daily No. {daily.number}: Nobody Mated Yet</h2>
+              <p className="byline">Today's position is waiting below.</p>
             </>
           )}
         </div>
 
         <article className="lead-body">
-          <figure className="photo">
-            <Gary width={128} />
-            <figcaption>{BOT.name}.</figcaption>
-          </figure>
-          <div className="story">
-            <p>
-              {BOT.name} is the club computer. It knows the rules of chess and one plan, which is to attack your king.
-              It takes three moves to remember the plan, and plays anything at all until then. After that, if it can
-              give check, it does, picking one of its checks at random. If it can't, it moves a piece toward your king,
-              also at random.
-            </p>
-            <p>
-              The object is to get checkmated by {BOT.name} in as few moves as you can. Checkmating {BOT.name} doesn't
-              count, and neither does a draw. {BOT.name} can't tell a check from a checkmate, so the quickest way to
-              lose is to leave it checks that are also mate.
-            </p>
-          </div>
+          {daily && (
+            <figure className="problem front-diagram">
+              <div className="diagram">
+                <Board fen={daily.fen} orientation={daily.playerColor === 'w' ? 'white' : 'black'} lastMove={lastMove} check={checkColor(daily.fen)} />
+              </div>
+              <figcaption>
+                <b>Diagram {daily.number}.</b> {side} to play and lose.
+              </figcaption>
+            </figure>
+          )}
+          {daily && (
+            <div className="story">
+              <p>
+                This morning {BOT.name}, the club computer, played {word(Math.ceil(daily.moves.length / 2))} moves
+                against itself at random and stopped here. You take over as {side}. Everyone gets the same position
+                today.
+              </p>
+              <p>
+                The object is to get checkmated by {BOT.name} in as few moves as you can. Checkmating {BOT.name}{' '}
+                doesn't count, and neither does a draw. {BOT.name} has one plan, which is to attack your king: if it can
+                give check it does, picking one of its checks at random, and if it can't it moves a piece toward your
+                king. It can't tell a check from a checkmate.
+              </p>
+              <p>
+                Its replies are random, so try as often as you like. The standings show your best and which try it came
+                on.
+              </p>
+            </div>
+          )}
         </article>
 
         <form className="coupon" onSubmit={play}>
-          <div className="coupon-title">Entry form</div>
+          <div className="coupon-title">Today's game</div>
           <label className="blank">
             <span>Name</span>
             <input value={name} maxLength={20} placeholder="Anonymous" onChange={(e) => setName(e.target.value)} />
           </label>
-          <fieldset className="checks">
-            <legend>Play as</legend>
-            {SIDES.map((s) => (
-              <label key={s.key} className="check">
-                <input type="radio" name="side" value={s.key} checked={side === s.key} onChange={() => setSide(s.key)} />
-                <span className="box" aria-hidden="true">
-                  {side === s.key && (
-                    <svg viewBox="0 0 20 20">
-                      <path d="M4 3.5c4 4 8 8.5 12.5 13M16 4c-3.5 3.8-8 8.6-12 12.5" />
-                    </svg>
-                  )}
-                </span>
-                {s.label}
-              </label>
-            ))}
-          </fieldset>
-          <button type="submit" className="btn btn-ink btn-big" disabled={busy}>
-            {busy ? 'Setting up…' : `Play ${BOT.name}`}
+          <button type="submit" className="btn btn-ink btn-big" disabled={busy || !daily}>
+            {busy ? 'Setting up…' : mine ? 'Try again' : `Play ${BOT.name}`}
           </button>
-          <p className="coupon-note daily-teaser">
-            Or play <Link to="/daily">the Daily</Link>: one position for everyone today, as many tries as you like.
-          </p>
+          {mine && <p className="coupon-note">Your best today: {mine.playerMoves} moves, on try {mine.tries}.</p>}
           {current && (
             <p className="coupon-note">
-              You have a game going, {current.playerMoves} {current.playerMoves === 1 ? 'move' : 'moves'} in.{' '}
-              <Link to={`/game/${current.id}`}>Go back to it</Link>. Starting a new one resigns it.
+              You have a try in progress. <Link to={`/game/${current.id}`}>Go back to it</Link>.
             </p>
           )}
         </form>
@@ -161,20 +171,28 @@ export default function Home() {
 
       <section className="front-columns">
         <div className="col">
-          <Problem />
-        </div>
-        <div className="col">
-          <h3 className="col-head">Standings</h3>
-          {top === null ? (
+          <h3 className="col-head">Today's standings</h3>
+          {board === null ? (
             <p className="muted">Loading…</p>
-          ) : top.length === 0 ? (
-            <p className="muted">No one yet.</p>
+          ) : board.length === 0 ? (
+            <p className="muted">Nobody has been checkmated today yet.</p>
           ) : (
             <ol className="standings compact">
-              {top.map((e, i) => <StandingsRow key={e.id} entry={e} rank={i + 1} compact />)}
+              {board.map((e, i) => <DailyRow key={e.id} entry={e} rank={i + 1} />)}
             </ol>
           )}
           <Link className="col-more" to="/standings">All standings</Link>
+        </div>
+        <div className="col more-games">
+          <h3 className="col-head">More games</h3>
+          <p>
+            <b>Endless.</b> A new {BOT.name} v {BOT.name} position every game. Nothing counts, so play as many as you
+            like. <Link to="/endless">Play endless</Link>
+          </p>
+          <p>
+            <b>Classic.</b> The original: from the first move, with the Fool's Mate problem and the all-time
+            standings. <Link to="/classic">Play classic</Link>
+          </p>
         </div>
         <div className="col">
           <h3 className="col-head">Latest results</h3>
@@ -191,60 +209,5 @@ export default function Home() {
         </div>
       </section>
     </div>
-  );
-}
-
-const FOOLS_MATE = ['f2f3', 'e7e5', 'g2g4', 'd8h4'];
-
-// A newspaper chess problem. The solution is printed upside down; turning it
-// the right way up plays it out on the diagram.
-function Problem() {
-  const plies = useMemo(() => replay(FOOLS_MATE).plies, []);
-  const [step, setStep] = useState(-1);
-  const [solved, setSolved] = useState(false);
-
-  useEffect(() => {
-    if (!solved || step >= plies.length - 1) return;
-    const t = setTimeout(() => {
-      setStep((s) => s + 1);
-      playSound(step + 1 === plies.length - 1 ? 'check' : 'move');
-    }, step === -1 ? 350 : 800);
-    return () => clearTimeout(t);
-  }, [solved, step, plies.length]);
-
-  const p = step >= 0 ? plies[step] : null;
-  const fen = p ? p.fen : START_FEN;
-  const lastMove = useMemo(() => (p ? [p.from, p.to] : undefined), [p]);
-  const shapes = useMemo(() => (step === plies.length - 1 ? [{ orig: 'h4', dest: 'e1', brush: 'red' }] : []), [step, plies.length]);
-
-  return (
-    <figure className="problem">
-      <div className="diagram">
-        <Board fen={fen} orientation="white" turnColor={step % 2 ? 'white' : 'black'} lastMove={lastMove} check={checkColor(fen)} autoShapes={shapes} />
-      </div>
-      <figcaption>
-        <b>Diagram 1.</b> White to play and lose in two.
-      </figcaption>
-      <button
-        type="button"
-        className={`solution${solved ? ' upright' : ''}`}
-        onClick={() => {
-          if (solved) {
-            setSolved(false);
-            setStep(-1);
-          } else {
-            setSolved(true);
-          }
-        }}
-        title={solved ? 'Reset the diagram' : 'Show the solution'}
-      >
-        Solution: 1.f3 e5 2.g4 Qh4#
-        {solved && step === plies.length - 1 && <PenCircle className="solution-ring" />}
-      </button>
-      <p className="problem-note">
-        {BOT.name}'s first three moves are random, so it has to stumble onto 1…e5 or 1…e6 and then Qh4. That
-        happens about once in three hundred games.
-      </p>
-    </figure>
   );
 }

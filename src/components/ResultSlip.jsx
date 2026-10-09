@@ -55,7 +55,7 @@ export default function ResultSlip({ open, game, token, finalOdds, closeCalls, o
         ? `Checkmated in ${plural(game.playerMoves, 'move')}, on your ${ordinal(game.tries)} try today.`
         : `Checkmated in ${plural(game.playerMoves, 'move')}.`,
     );
-    if (game.playerMoves === 2 && !daily) lines.push('That is the shortest game possible.');
+    if (game.playerMoves === 2 && game.mode === 'classic') lines.push('That is the shortest game possible.');
     if (finalOdds) {
       const n = finalOdds.pool.length;
       const what = finalOdds.kind === 'check' ? 'check' : 'move';
@@ -77,14 +77,16 @@ export default function ResultSlip({ open, game, token, finalOdds, closeCalls, o
   const link = `${location.origin}/replay/${game.id}`;
   return (
     <Modal open={open} onClose={onClose} className="slip">
-      <div className="slip-label">{daily ? `Result · Daily No. ${game.dailyNumber}` : 'Result'}</div>
+      <div className="slip-label">
+        {daily ? `Result · Daily No. ${game.dailyNumber}` : game.mode === 'endless' ? 'Result · Endless' : 'Result'}
+      </div>
       <div className="slip-score">
         <span>{white} v {black}</span>
         <b>{scoreline(game)}</b>
       </div>
       <div className="slip-body">
         {lines.map((l) => <p key={l}>{l}</p>)}
-        {success && !daily && game.rank && <p>{ordinal(game.rank)} in the standings.</p>}
+        {success && game.mode === 'classic' && game.rank && <p>{ordinal(game.rank)} in the classic standings.</p>}
         {success && daily && best?.isThis && <p>{ordinal(game.rank)} on today's board.</p>}
         {success && daily && best && !best.isThis && (
           <p>
@@ -105,7 +107,7 @@ export default function ResultSlip({ open, game, token, finalOdds, closeCalls, o
       )}
 
       <div className="slip-actions">
-        <button type="button" className="btn btn-ink" onClick={onPlayAgain} disabled={busy}>{daily ? 'Try again' : 'Play again'}</button>
+        <button type="button" className="btn btn-ink" onClick={onPlayAgain} disabled={busy}>{daily ? 'Try again' : game.mode === 'endless' ? 'Next position' : 'Play again'}</button>
         <Link className="btn" to={`/replay/${game.id}`}>Replay</Link>
         <button
           type="button"

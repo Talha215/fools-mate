@@ -7,11 +7,14 @@ import { myGameIds } from '../lib/myGames.js';
 import { Link } from '../lib/router.jsx';
 import { toast } from '../lib/toast.jsx';
 
-const FILTERS = [
+const BOARDS = [
+  ['daily', 'Daily'],
+  ['classic', 'Classic'],
+];
+const COLORS = [
   ['', 'All'],
   ['w', 'White'],
   ['b', 'Black'],
-  ['daily', 'Daily'],
 ];
 
 const shortDate = (ts) => (ts ? new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '');
@@ -61,12 +64,14 @@ export function DailyRow({ entry: e, rank, mine = false }) {
 }
 
 export default function Standings() {
+  // The Daily first; ?board=classic links straight to the classic standings.
+  const [boardKind, setBoardKind] = useState(() => (new URLSearchParams(location.search).get('board') === 'classic' ? 'classic' : 'daily'));
   const [color, setColor] = useState('');
   const [unique, setUnique] = useState(true);
   const [day, setDay] = useState(todayUTC);
   const [entries, setEntries] = useState(null);
   const [number, setNumber] = useState(null);
-  const daily = color === 'daily';
+  const daily = boardKind === 'daily';
 
   useEffect(() => {
     let alive = true;
@@ -89,6 +94,11 @@ export default function Standings() {
     };
   }, [color, unique, daily, day]);
 
+  function pickBoard(k) {
+    setBoardKind(k);
+    history.replaceState(null, '', k === 'classic' ? '/standings?board=classic' : '/standings');
+  }
+
   const mine = new Set(myGameIds());
 
   return (
@@ -97,15 +107,22 @@ export default function Standings() {
       <p className="page-dek">
         {daily
           ? `The Daily, one line per name: fewest moves, then fewest tries, then the faster game.`
-          : `Fewest moves to get checkmated by ${BOT.name}. Ties go to the faster game.`}
+          : `Classic, from the first move: fewest moves to get checkmated by ${BOT.name}. Ties go to the faster game.`}
       </p>
       <div className="filters">
         <div className="tabs" role="tablist">
-          {FILTERS.map(([k, label]) => (
-            <button key={k} type="button" role="tab" aria-selected={color === k} className={color === k ? 'on' : ''} onClick={() => setColor(k)}>
+          {BOARDS.map(([k, label]) => (
+            <button key={k} type="button" role="tab" aria-selected={boardKind === k} className={boardKind === k ? 'on' : ''} onClick={() => pickBoard(k)}>
               {label}
             </button>
           ))}
+          {!daily && <span className="tabs-sep" aria-hidden="true">|</span>}
+          {!daily &&
+            COLORS.map(([k, label]) => (
+              <button key={k || 'all'} type="button" className={color === k ? 'on' : ''} onClick={() => setColor(k)}>
+                {label}
+              </button>
+            ))}
         </div>
         {daily ? (
           <div className="day-nav">
@@ -129,7 +146,7 @@ export default function Standings() {
       ) : entries.length === 0 ? (
         <p className="empty">
           No one has been checkmated {daily ? 'in this daily' : 'yet'}.{' '}
-          <Link to={daily ? '/daily' : '/'}>You could be first.</Link>
+          <Link to={daily ? '/' : '/classic'}>You could be first.</Link>
         </p>
       ) : daily ? (
         <>

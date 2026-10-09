@@ -2,7 +2,7 @@
 // React app (see "assets" in wrangler.jsonc).
 import { newDailyGame, newGame, playerMove, playerMoveCount, resign } from './game.js';
 import { cryptoRng } from './bot.js';
-import { dailyNumber, dailyPosition, isDate, todayUTC } from '../shared/daily.js';
+import { dailyNumber, dailyPosition, isDate, positionFromSeed, todayUTC } from '../shared/daily.js';
 
 const LIVE_WINDOW_MS = 2 * 60 * 1000; // "playing now" = moved in the last 2 minutes
 const STALE_ACTIVE_MS = 7 * 24 * 60 * 60 * 1000; // abandoned games are pruned after a week
@@ -60,12 +60,13 @@ async function route(request, env, ctx, url) {
 
 async function createGame(request, env, ctx) {
   const body = await readBody(request);
-  const daily = body.mode === 'daily';
+  const mode = body.mode === 'daily' || body.mode === 'endless' ? body.mode : 'classic';
+  const daily = mode === 'daily';
   // The daily is always today's (UTC): nobody can start yesterday's for the
-  // standings.
-  const day = daily ? dailyPosition(todayUTC()) : null;
-  const color = daily ? day.playerColor : body.color === 'b' || body.color === 'w' ? body.color : cryptoRng(2) ? 'b' : 'w';
-  const state = daily ? newDailyGame(day) : newGame(color, cryptoRng);
+  // standings. Endless gets a fresh Gary v Gary position from a random seed.
+  const day = daily ? dailyPosition(todayUTC()) : mode === 'endless' ? positionFromSeed(`endless ${randomToken()}`) : null;
+  const color = day ? day.playerColor : body.color === 'b' || body.color === 'w' ? body.color : cryptoRng(2) ? 'b' : 'w';
+  const state = day ? newDailyGame(day) : newGame(color, cryptoRng);
   const id = randomId(10);
   const token = randomToken();
   const now = Date.now();
@@ -76,7 +77,7 @@ async function createGame(request, env, ctx) {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(id, await sha256(token), cleanName(body.name), color, state.moves.join(' '), state.moves.length,
-      state.fen, JSON.stringify(state.keys), now, now, daily ? 'daily' : 'classic', daily ? day.date : null,
+      state.fen, JSON.stringify(state.keys), now, now, mode, daily ? day.date : null,
       state.startPly || 0)
     .run();
   await bump(env, { games: 1 });
@@ -309,6 +310,7 @@ async function publicGame(env, row) {
     }
     return game;
   }
+  if (row.mode === 'endless') return game; // never ranked
   if (row.result === 'mated') {
     // Leaderboard position among all successful classic runs.
     const r = await env.DB.prepare(

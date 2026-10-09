@@ -137,7 +137,7 @@ export default function ReplayPage({ id }) {
       side={
         <div className="sheet">
           <div className="sheet-head">
-            <span>{game.mode === 'daily' ? `Daily No. ${game.dailyNumber}` : active ? 'In play' : 'Game record'}</span>
+            <span>{game.mode === 'daily' ? `Daily No. ${game.dailyNumber}` : game.mode === 'endless' ? 'Endless' : active ? 'In play' : 'Game record'}</span>
             <span>{game.durationMs != null && formatDuration(game.durationMs)}</span>
           </div>
           <pre className="pgn-tags">{pgn.tags}</pre>

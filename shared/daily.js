@@ -1,7 +1,9 @@
-// The daily game. Each UTC date seeds a game in which Gary plays both sides
-// at random for a while; everyone who plays that day takes over from the same
-// position, as whichever side is to move. Gary's replies after that are
-// random per player, as in the main game.
+// Gary v Gary starting positions. Gary plays both sides at random for a
+// while and the player takes over as whichever side is to move.
+//   The Daily: the UTC date is the seed, so everyone gets the same position
+//     that day.
+//   Endless: a fresh random seed every game; nothing is ranked.
+// Gary's replies after the hand-over are random per player in both.
 import { Chess } from 'chess.js';
 
 // Daily No. 1.
@@ -30,14 +32,10 @@ function seeded(text) {
   };
 }
 
-const cache = new Map();
-
-// { date, number, moves: [uci], fen, playerColor } for a UTC date. Uses SAN
-// moves() rather than verbose moves to stay cheap (see shared/rules.js), and
-// is cached per date, so the Worker builds each day once per isolate.
-export function dailyPosition(date) {
-  if (cache.has(date)) return cache.get(date);
-  const rng = seeded(`fools-mate daily ${date}`);
+// { moves: [uci], fen, playerColor } for a seed. Uses SAN moves() rather
+// than verbose moves to stay cheap (see shared/rules.js).
+export function positionFromSeed(seed) {
+  const rng = seeded(seed);
   let result = null;
   for (let attempt = 0; attempt < 100 && !result; attempt++) {
     const plies = MIN_PLIES + rng(MAX_PLIES - MIN_PLIES + 1);
@@ -49,9 +47,17 @@ export function dailyPosition(date) {
     }
     // Hand over a live game, with nobody already in check.
     if (moves.length === plies && !chess.isGameOver() && !chess.inCheck()) {
-      result = { date, number: dailyNumber(date), moves, fen: chess.fen(), playerColor: chess.turn() };
+      result = { moves, fen: chess.fen(), playerColor: chess.turn() };
     }
   }
-  cache.set(date, result);
   return result;
+}
+
+const cache = new Map();
+
+// { date, number, moves, fen, playerColor } for a UTC date, cached so the
+// Worker builds each day once per isolate.
+export function dailyPosition(date) {
+  if (!cache.has(date)) cache.set(date, { date, number: dailyNumber(date), ...positionFromSeed(`fools-mate daily ${date}`) });
+  return cache.get(date);
 }

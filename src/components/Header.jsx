@@ -5,8 +5,9 @@ import { THEMES, boardImage, updateSettings, useSettings } from '../lib/settings
 import { FallenKing } from './Drawings.jsx';
 
 const NAV = [
-  { to: '/', label: 'Play', match: (p) => p === '/' || p.startsWith('/game/') },
-  { to: '/daily', label: 'Daily', match: (p) => p.startsWith('/daily') },
+  { to: '/', label: 'Today', match: (p) => p === '/' || p === '/daily' },
+  { to: '/endless', label: 'Endless', match: (p) => p === '/endless' },
+  { to: '/classic', label: 'Classic', match: (p) => p === '/classic' },
   { to: '/standings', label: 'Standings', match: (p) => p.startsWith('/standings') },
   { to: '/archive', label: 'Archive', match: (p) => p.startsWith('/archive') || p.startsWith('/replay/') },
 ];

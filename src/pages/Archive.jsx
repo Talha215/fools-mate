@@ -8,7 +8,7 @@ import { Link } from '../lib/router.jsx';
 const SHORT_REASON = { stalemate: 'stalemate', repetition: 'repetition', fifty: '50 moves', insufficient: 'no material' };
 
 function describe(g) {
-  const d = g.mode === 'daily' ? `daily No. ${g.dailyNumber}, ` : '';
+  const d = g.mode === 'daily' ? `daily No. ${g.dailyNumber}, ` : g.mode === 'endless' ? 'endless, ' : '';
   return d + describeResult(g);
 }
 

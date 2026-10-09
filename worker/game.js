@@ -28,7 +28,7 @@ export function newGame(playerColor, rng, choose = chooseMove) {
   return playerColor === 'b' ? botReply(state, chess, rng, choose) : state;
 }
 
-// A daily game: Gary's moves for both sides up to the day's position, then the
+// A daily or endless game: Gary's moves for both sides up to the position, then the
 // player takes over as the side to move. `daily` comes from shared/daily.js.
 // startPly marks the hand-over, so only moves after it count for the player.
 export function newDailyGame(daily) {

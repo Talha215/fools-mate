@@ -205,7 +205,7 @@ function GameView({ initial, token }) {
     setBusy(true);
     try {
       const color = settings.color === 'w' || settings.color === 'b' ? settings.color : undefined;
-      const { game: g, token: t } = await api.createGame(color, settings.name, game.mode === 'daily' ? 'daily' : undefined);
+      const { game: g, token: t } = await api.createGame(color, settings.name, game.mode);
       rememberGame(g.id, t);
       navigate(`/game/${g.id}`);
     } catch (e) {
@@ -289,7 +289,7 @@ function GameView({ initial, token }) {
         side={
           <div className="sheet">
             <div className="sheet-head">
-              <span>{game.mode === 'daily' ? `Daily No. ${game.dailyNumber}` : 'Scoresheet'}</span>
+              <span>{game.mode === 'daily' ? `Daily No. ${game.dailyNumber}` : game.mode === 'endless' ? 'Endless' : 'Scoresheet'}</span>
               <span>{playerColor === 'w' ? `${game.name} v ${BOT.name}` : `${BOT.name} v ${game.name}`}</span>
             </div>
             {settings.odds && (active || tally) && <Tally data={tally} />}
@@ -319,10 +319,12 @@ function GameView({ initial, token }) {
               ) : (
                 <>
                   <button type="button" className="btn btn-ink" onClick={playAgain} disabled={busy}>
-                    {game.mode === 'daily' ? 'Try again' : 'Play again'}
+                    {game.mode === 'daily' ? 'Try again' : game.mode === 'endless' ? 'Next position' : 'Play again'}
                   </button>
                   <Link className="btn" to={`/replay/${game.id}`}>Replay</Link>
-                  {game.result === 'mated' && <Link className="btn" to={game.mode === 'daily' ? '/daily' : '/standings'}>Standings</Link>}
+                  {game.result === 'mated' && game.mode !== 'endless' && (
+                    <Link className="btn" to={game.mode === 'daily' ? '/' : '/standings?board=classic'}>Standings</Link>
+                  )}
                 </>
               )}
             </div>

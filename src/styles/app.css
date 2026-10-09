@@ -544,6 +544,15 @@ input:focus { border-bottom-width: 2.5px; padding-bottom: 3px; }
 .day-nav { display: flex; align-items: center; gap: 14px; font-size: 14.5px; }
 .day-nav .text-btn:disabled { opacity: 0.35; cursor: default; text-decoration: none; }
 
+.front-diagram { float: left; width: 46%; max-width: 360px; margin: 4px 24px 12px 0; }
+.front-columns.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.front-columns.two .diagram { max-width: 420px; }
+.more-games p { margin-bottom: 14px; font-size: 15px; line-height: 1.55; }
+.more-games b { font-family: var(--serif); font-size: 17px; }
+.endless-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+.endless-coupon { grid-area: auto; margin: 0; }
+.tabs-sep { color: var(--hair); }
+
 /* ------------------------------------------------------------- inner pages */
 
 .page { max-width: 1000px; margin: 0 auto; padding: 26px 24px 48px; }
@@ -582,7 +591,8 @@ input:focus { border-bottom-width: 2.5px; padding-bottom: 3px; }
 /* ------------------------------------------------------------- narrow screens */
 
 @media (max-width: 900px) {
-  .daily-grid { grid-template-columns: minmax(0, 1fr); }
+  .daily-grid, .endless-grid { grid-template-columns: minmax(0, 1fr); }
+  .front-diagram { float: none; width: 100%; max-width: 420px; margin: 0 auto 16px; }
   .front-top { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'head' 'form' 'body'; grid-template-rows: auto; }
   .lead-head, .lead-body { padding-right: 0; border-right: 0; }
   .coupon { margin: 4px 0 24px; }
@@ -619,13 +629,12 @@ input:focus { border-bottom-width: 2.5px; padding-bottom: 3px; }
 }
 
 @media (max-width: 600px) {
-  .nameplate-inner { gap: 14px; padding: 0 12px; }
-  .wordmark > span:not(.fallen-king) { display: none; }
+  .nameplate-inner { flex-wrap: wrap; height: auto; gap: 0 14px; padding: 8px 12px 0; }
+  .nameplate-inner .nav { order: 3; width: 100%; padding: 6px 0 2px; overflow-x: auto; scrollbar-width: none; }
+  .nameplate-inner .nav::-webkit-scrollbar { display: none; }
   .nav { gap: 14px; }
   .nav a { font-size: 14px; }
   .tools { gap: 10px; }
-  /* Sound is also in the board menu; the header needs the room for the nav. */
-  .tools .sound-btn { display: none; }
   .text-btn { font-size: 13px; }
   .front, .page { padding-left: 16px; padding-right: 16px; }
   .hide-sm, .st-time, .st-date { display: none; }
